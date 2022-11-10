@@ -161,7 +161,8 @@ def _build_json_fortran(caseroot, libroot, bldroot):
 
         arg_dict = _cmake_default_args(caseroot)
         cmake_args = "-DCMAKE_Fortran_COMPILER={} ".format(arg_dict["SFC"])
-        cmake_args += "-DCMAKE_C_COMPILER={} ".format(arg_dict["SCC"])
+        cmake_args += "-DCMAKE_C_COMPILER_WORKS=1 "
+        cmake_args += "-DCMAKE_CXX_COMPILER_WORKS=1 "
         cmake_args += "-DCMAKE_BUILD_TYPE=Release "
         cmake_args += "-DSKIP_DOC_GEN:BOOL=TRUE "
         cmake_args += srcpath
@@ -210,6 +211,8 @@ def _build_tuvx(caseroot, libroot, bldroot):
             cmake_args = "-DCMAKE_Fortran_COMPILER={} ".format(arg_dict["MPIFC"])
             cmake_args += "-DCMAKE_C_COMPILER={} ".format(arg_dict["MPICC"])
             cmake_args += "-DENABLE_MPI:BOOL=TRUE "
+        cmake_args += "-DCMAKE_C_COMPILER_WORKS=1 "
+        cmake_args += "-DCMAKE_CXX_COMPILER_WORKS=1 "
         cmake_args += "-DCMAKE_BUILD_TYPE=Release "
         cmake_args += "-DENABLE_COVERAGE=OFF "
         cmake_args += "-DENABLE_TESTS=OFF "

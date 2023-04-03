@@ -251,6 +251,9 @@ def _build_musica(caseroot, libroot, bldroot):
         cmake_args += "-DENABLE_UTIL_ONLY=ON "
         cmake_args += "-DCMAKE_C_COMPILER_WORKS=1 "
         cmake_args += "-DCMAKE_CXX_COMPILER_WORKS=1 "
+        cmake_args += "-DENABLE_MICM=OFF "
+        cmake_args += "-DENABLE_TUVX=ON "
+        cmake_args += "-DENABLE_TESTS=OFF "
         cmake_args += "-DENABLE_COVERAGE=OFF "
         cmake_args += "-DJSON_INCLUDE_DIR={} ".format(jsoninc)
         cmake_args += "-DJSON_LIB={} ".format(jsonlib)

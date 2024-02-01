@@ -11,7 +11,7 @@ module mo_tuvx
   use tuvx_grid_from_host,     only : grid_updater_t
   use tuvx_profile_from_host,  only : profile_updater_t
   use tuvx_radiator_from_host, only : radiator_updater_t
-  use cam_history,    only : addfld, outfld
+  use cam_history,    only : addfld, outfld, add_default
   use physics_buffer, only : pbuf_add_field, dtype_r8
   use physics_buffer, only : physics_buffer_desc
   use physics_buffer, only : pbuf_set_field, pbuf_get_field
@@ -315,7 +315,6 @@ contains
     call pbuf_set_field(pbuf2d, cpe_jo3b_ndx, 0.0_r8)
 
     if( is_main_task ) write(iulog,*) "Beginning TUV-x Initialization"
-
     config_path = trim(tuvx_config_path)
 
     ! ===============================
@@ -680,7 +679,8 @@ contains
                               height_int(i_col,:), &
                               tuvx%photo_rates_(i_col,2:pver+1,jno_index) )
         end if
-      end do
+
+     end do
 
       ! =====================
       ! Filter negative rates
@@ -908,8 +908,11 @@ contains
      !  print*,'FVDBG.initialize_diagnostics tuvx label : ',trim( all_labels( i_label )%to_char( ) )
       diagnostics( i_label )%name_  = trim( all_labels( i_label )%to_char( ) )
       diagnostics( i_label )%index_ = i_label
-      call addfld( "tuvx_"//diagnostics( i_label )%name_, (/ 'lev' /), 'A', 'sec-1', &
-                   'photolysis rate constant' )
+
+      call addfld( "tuvx_"//diagnostics( i_label )%name_, (/ 'lev' /), 'A', 'sec-1',  'photolysis rate constant' )
+
+      call add_default( "tuvx_"//diagnostics( i_label )%name_, 3, ' ')
+
     end do
 
   end subroutine initialize_diagnostics

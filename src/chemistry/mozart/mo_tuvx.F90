@@ -664,7 +664,8 @@ contains
                                     species_vmr(i_col,:,:), &
                                     height_mid(i_col,:), &
                                     height_int(i_col,:), &
-                                    tuvx%photo_rates_(i_col,2:pver+1,euv_begin:euv_end) )
+                                    tuvx%photo_rates_(i_col,pver+1:2:-1,euv_begin:euv_end) )
+                          !          tuvx%photo_rates_(i_col,2:pver+1,euv_begin:euv_end) )
         end associate
         end if
 

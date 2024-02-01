@@ -430,16 +430,17 @@ column_loop : &
             cparg(:)    = cpair(i,:)
             do_diag     = .false.
 
-!            if (tuvx_active) then
+            call jshort( pver, sza, o2_line, o3_line, o2cc, &
+                    o3cc, tline, zarg, mw, qrs_col, &
+                    cparg, lchnk, i, co2cc, scco2, do_diag )
+
+            if (tuvx_active) then
                hfactor(:)  = avogad/(cparg(:)*mw(:))
                qr_jo2a_tuvx(i,:) = cpe_jo2a(i,:) * hfactor(:) * o2_line(:) * esfact
                qr_jo2b_tuvx(i,:) = cpe_jo2b(i,:) * hfactor(:) * o2_line(:) * esfact
                qr_jo3a_tuvx(i,:kbot_hrates) = cpe_jo3a(i,:kbot_hrates) * hfactor(:kbot_hrates) * o3_line(:kbot_hrates) * esfact
                qr_jo3b_tuvx(i,:kbot_hrates) = cpe_jo3b(i,:kbot_hrates) * hfactor(:kbot_hrates) * o3_line(:kbot_hrates) * esfact
-!            else
-               call jshort( pver, sza, o2_line, o3_line, o2cc, &
-                    o3cc, tline, zarg, mw, qrs_col, &
-                    cparg, lchnk, i, co2cc, scco2, do_diag )
+            else
                call jlong( pver, sza, eff_alb, parg, tline, &
                     mw, o2_line, o3_line, colo3, qrl_col, &
                     cparg, kbot_hrates )
@@ -449,7 +450,7 @@ column_loop : &
                do m = 2,4
                   qrl(i,:,m) = qrl_col(:,m) * esfact
                end do
-!            end if
+            end if
 
             call heuv( pver, sza, occ, o2cc, n2cc, &
                        o_line, o2_line, n2_line, cparg, mw, &
@@ -488,17 +489,17 @@ column_loop : &
       call outfld( 'QRS_EUV', euv_hrate(:,:), ncol, lchnk )
       call outfld( 'QRS_CO2NIR', co2_hrate(:,:), ncol, lchnk )
 
-!      if (tuvx_active) then
+      if (tuvx_active) then
          call outfld( 'QRS_O2A_tuvx', qr_jo2a_tuvx(:ncol,:), ncol, lchnk )
          call outfld( 'QRS_O2B_tuvx', qr_jo2b_tuvx(:ncol,:), ncol, lchnk )
          call outfld( 'QRS_O3A_tuvx', qr_jo3a_tuvx(:ncol,:), ncol, lchnk )
          call outfld( 'QRS_O3B_tuvx', qr_jo3b_tuvx(:ncol,:), ncol, lchnk )
-!      else
+      else
          call outfld( 'QRS_O2A_tabl', qrs(:,:,1)+qrl(:,:,1), ncol, lchnk )
          call outfld( 'QRS_O2B_tabl', qrs(:,:,2)+qrl(:,:,2), ncol, lchnk )
          call outfld( 'QRS_O3A_tabl', qrs(:,:,3)+qrl(:,:,3), ncol, lchnk )
          call outfld( 'QRS_O3B_tabl', qrs(:,:,4)+qrl(:,:,4), ncol, lchnk )
-!      endif
+      endif
 
 !-----------------------------------------------------------------------
 !     	... chemical pot heating rate

@@ -144,6 +144,7 @@ contains
        tag_names(n) = trim(rxt_tag_lst(n))
        if (n<=phtcnt) then
           call addfld( tag_names(n), (/ 'lev' /), 'I', '/s', 'photolysis rate constant' )
+          call add_default( tag_names(n), 3, ' ')
        else
           ii = n-phtcnt
           select case(num_rnts(ii))
@@ -815,7 +816,7 @@ contains
     call shr_orb_decl( calday, eccen, mvelpp, lambm0, obliqr  , &
          delta, esfact )
 
-!!$    if (tuvx_active) then
+    if (tuvx_active) then
       !-----------------------------------------------------------------
       !	... get calculated photolysis rates from TUV-x
       !-----------------------------------------------------------------
@@ -823,14 +824,14 @@ contains
                                  tfld, ts, invariants, vmr, col_delta, &
                                  asdir, zen_angle, esfact, pdel, cldfr,&
                                  cwat, reaction_rates(:,:,1:phtcnt) )
-!!$    else
+    else
       !-----------------------------------------------------------------
       !	... lookup the photolysis rates from table
       !-----------------------------------------------------------------
       call table_photo( reaction_rates, pmid, pdel, tfld, zmid, zint, &
                         col_dens, zen_angle, asdir, cwat, cldfr, &
                         esfact, vmr, invariants, ncol, lchnk, pbuf )
-!!$    endif
+    endif
 
     do i = 1,phtcnt
        call outfld( tag_names(i), reaction_rates(:ncol,:,rxt_tag_map(i)), ncol, lchnk )

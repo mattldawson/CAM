@@ -1,0 +1,1010 @@
+{
+   "__description": "TUV-x configuration for the MOZART-TS1 and MOZART-TSMLT chemical mechanisms",
+   "O2 absorption" : {
+     "cross section parameters file": "data/cross_sections/O2_parameters.txt"
+   },
+   "grids": [
+   ],
+   "profiles": [
+   ],
+   "radiative transfer": {
+      "solver": {
+         "type": "discrete ordinate",
+         "number of streams": 4
+      },
+      "cross sections": [
+         {
+            "name": "air",
+            "type": "air"
+         },
+         {
+            "name": "O3",
+            "netcdf files": [
+              { "file path": "data/cross_sections/O3_1.nc" },
+              { "file path": "data/cross_sections/O3_2.nc" },
+              { "file path": "data/cross_sections/O3_3.nc" },
+              { "file path": "data/cross_sections/O3_4.nc" }
+            ],
+            "type": "O3"
+         },
+         {
+            "name": "O2",
+            "netcdf files": [
+              {
+                "file path": "data/cross_sections/O2_1.nc",
+                "lower extrapolation": { "type": "boundary" },
+                "interpolator": { "type": "fractional target" }
+              }
+            ],
+            "type": "base"
+         }
+      ],
+      "radiators": [
+         {
+            "name": "air",
+            "type": "base",
+            "treat as air": true,
+            "cross section": "air",
+            "vertical profile": "air",
+            "vertical profile units": "molecule cm-3"
+         },
+         {
+            "name": "O2",
+            "type": "base",
+            "cross section": "O2",
+            "vertical profile": "O2",
+            "vertical profile units": "molecule cm-3"
+         },
+         {
+            "name": "O3",
+            "type": "base",
+            "cross section": "O3",
+            "vertical profile": "O3",
+            "vertical profile units": "molecule cm-3"
+         }
+      ]
+   },
+   "photolysis": {
+      "reactions": [
+         {
+            "name": "jo2_a",
+            "__reaction": "O2 + hv -> O + O1D",
+            "cross section": {
+              "netcdf files": [
+                {
+                   "file path": "data/cross_sections/O2_1.nc",
+                   "lower extrapolation": { "type": "boundary" },
+                   "interpolator": { "type": "fractional target" }
+                 }
+               ],
+               "type": "base"
+            },
+            "quantum yield": {
+              "type": "base",
+              "constant value": 0,
+              "override bands": [
+                {
+                  "band": "lyman-alpha",
+                  "value": 0.53
+                },
+                {
+                  "band": "schumann-runge continuum",
+                  "value": 1.0
+                }
+              ]
+            }
+         },
+         {
+            "name": "jo2_b",
+            "__reaction": "O2 + hv -> O + O",
+            "cross section": {
+               "netcdf files": [
+                 {
+                   "file path": "data/cross_sections/O2_1.nc",
+                   "lower extrapolation": { "type": "boundary" },
+                   "interpolator": { "type": "fractional target" }
+                 }
+               ],
+               "type": "base"
+            },
+            "quantum yield": {
+               "type": "base",
+               "constant value": 1.0,
+               "override bands": [
+                 {
+                   "band": "lyman-alpha",
+                   "value": 0.47
+                 },
+                 {
+                   "band": "schumann-runge continuum",
+                   "value": 0.0
+                 }
+               ]
+            }
+         },
+         {
+            "name": "jo3_a",
+            "__reaction": "O3 + hv -> O2 + O(1D)",
+            "cross section": {
+               "netcdf files": [
+                 { "file path": "data/cross_sections/O3_1.nc" },
+                 { "file path": "data/cross_sections/O3_2.nc" },
+                 { "file path": "data/cross_sections/O3_3.nc" },
+                 { "file path": "data/cross_sections/O3_4.nc" }
+               ],
+               "type": "O3"
+            },
+            "quantum yield": {
+               "type": "O3+hv->O2+O(1D)"
+            }
+         },
+         {
+            "name": "jo3_b",
+            "__reaction": "O3 + hv -> O2 + O(3P)",
+            "cross section": {
+               "netcdf files": [
+                 { "file path": "data/cross_sections/O3_1.nc" },
+                 { "file path": "data/cross_sections/O3_2.nc" },
+                 { "file path": "data/cross_sections/O3_3.nc" },
+                 { "file path": "data/cross_sections/O3_4.nc" }
+               ],
+               "type": "O3"
+            },
+            "quantum yield": {
+               "type": "O3+hv->O2+O(3P)"
+            }
+         },
+         {
+            "name": "jn2o",
+            "__reaction": "N2O + hv -> N2 + O(1D)",
+            "cross section": {
+               "type": "N2O+hv->N2+O(1D)"
+            },
+            "quantum yield": {
+               "type": "base",
+               "constant value": 1.0
+            }
+         },
+         {
+            "name": "jno2",
+            "__reaction": "NO2 + hv -> NO + O(3P)",
+            "cross section": {
+               "netcdf files": [
+                 { "file path": "data/cross_sections/NO2_1.nc" }
+               ],
+               "type": "NO2 tint"
+            },
+            "quantum yield": {
+               "netcdf files": ["data/quantum_yields/NO2_1.nc"],
+               "type": "NO2 tint",
+               "lower extrapolation": { "type": "boundary" }
+            }
+         },
+         {
+            "name": "jn2o5_a",
+            "__reaction": "N2O5 + hv -> NO2 + NO3",
+            "cross section": {
+               "netcdf files": [
+                 { "file path": "data/cross_sections/N2O5_1.nc" },
+                 { "file path": "data/cross_sections/N2O5_2.nc" }
+               ],
+               "type": "N2O5+hv->NO2+NO3"
+            },
+            "quantum yield": {
+               "type": "base",
+               "netcdf files": [ "data/quantum_yields/N2O5_NO3_NO2.nc" ]
+            }
+         },
+         {
+            "name": "jn2o5_b",
+            "__reaction": "N2O5 + hv -> NO + O + NO3",
+            "cross section": {
+               "netcdf files": [
+                 { "file path": "data/cross_sections/N2O5_1.nc" },
+                 { "file path": "data/cross_sections/N2O5_2.nc" }
+               ],
+               "type": "N2O5+hv->NO2+NO3"
+            },
+            "quantum yield": {
+               "type": "base",
+               "netcdf files": [ "data/quantum_yields/N2O5_NO3_NO_O.nc" ]
+            }
+         },
+         {
+            "name": "jhno3",
+            "__reaction": "HNO3 + hv -> OH + NO2",
+            "cross section": {
+               "netcdf files": [
+                 { "file path": "data/cross_sections/HNO3_1.nc" }
+               ],
+               "type": "HNO3+hv->OH+NO2"
+            },
+            "quantum yield": {
+               "type": "base",
+               "constant value": 1.0
+            }
+         },
+         {
+            "name": "jno3_a",
+            "__reaction": "NO3 + hv -> NO2 + O(3P)",
+            "cross section": {
+               "netcdf files": [
+                 { "file path": "data/cross_sections/NO3_1.nc" }
+               ],
+               "type": "base"
+            },
+            "quantum yield": {
+               "netcdf files": [
+                  "data/quantum_yields/NO3-NO2+O(3P)_1.nc"
+               ],
+               "type": "tint",
+               "lower extrapolation": {
+                  "type": "constant",
+                  "value": 1.0
+               }
+            }
+         },
+         {
+            "name": "jno3_b",
+            "__reaction": "NO3 + hv -> NO + O2",
+            "cross section": {
+               "netcdf files": [
+                 { "file path": "data/cross_sections/NO3_1.nc" }
+               ],
+               "type": "base"
+            },
+            "quantum yield": {
+               "netcdf files": [
+                  "data/quantum_yields/NO3-NO+O2_1.nc"
+               ],
+               "type": "tint"
+            }
+         },
+         {
+            "name": "jch3ooh",
+            "__reaction": "CH3OOH + hv -> CH3O + OH",
+            "cross section": {
+               "netcdf files": [
+                 { "file path": "data/cross_sections/CH3OOH_1.nc" }
+               ],
+               "type": "base"
+            },
+            "quantum yield": {
+               "type": "base",
+               "constant value": 1.0
+            }
+         },
+         {
+            "name": "jch2o_a",
+            "__reaction": "CH2O + hv -> H + HCO",
+            "cross section": {
+               "netcdf files": [
+                 { "file path": "data/cross_sections/CH2O_1.nc" }
+               ],
+               "type": "CH2O"
+            },
+            "quantum yield": {
+               "netcdf files": [
+                  "data/quantum_yields/CH2O_1.nc"
+               ],
+               "type": "base",
+               "lower extrapolation": {
+                  "type": "boundary"
+               }
+            }
+         },
+         {
+            "name": "jch2o_b",
+            "__reaction": "CH2O + hv -> H2 + CO",
+            "cross section": {
+               "netcdf files": [
+                 { "file path": "data/cross_sections/CH2O_1.nc" }
+               ],
+               "type": "CH2O"
+            },
+            "quantum yield": {
+               "netcdf files": [
+                  "data/quantum_yields/CH2O_1.nc"
+               ],
+               "type": "CH2O",
+               "lower extrapolation": {
+                  "type": "boundary"
+               }
+            }
+         },
+         {
+            "name": "jh2o2",
+            "__reaction": "H2O2 + hv -> OH + OH",
+            "cross section": {
+               "netcdf files": [
+                 { "file path": "data/cross_sections/H2O2_1.nc" }
+               ],
+               "type": "H2O2+hv->OH+OH"
+            },
+            "quantum yield": {
+               "type": "base",
+               "constant value": 1.0
+            }
+         },
+         {
+            "name": "jbrcl",
+            "__reaction": "BrCl + hv -> Br + Cl",
+            "cross section": {
+               "netcdf files": [
+                 { "file path": "data/cross_sections/BrCl_1.nc" }
+               ],
+               "type": "base"
+            },
+            "quantum yield": {
+               "type": "base",
+               "constant value": 1.0
+            }
+         },
+         {
+            "name": "jbro",
+            "__reaction": "BrO + hv -> Br + O",
+            "cross section": {
+               "netcdf files": [
+                 {
+                   "file path": "data/cross_sections/BrO_1.nc",
+                   "interpolator": {
+                      "type": "fractional target",
+                      "fold in": true
+                   }
+                 }
+               ],
+               "type": "base"
+            },
+            "quantum yield": {
+               "type": "base",
+               "constant value": 1.0
+            }
+         },
+         {
+            "name": "jbrono2_a",
+            "__reaction": "BrONO2 + hv -> Br + NO3",
+            "cross section": {
+               "netcdf files": [
+                 { "file path": "data/cross_sections/BrONO2_1.nc" }
+               ],
+               "type": "base"
+            },
+            "quantum yield": {
+               "type": "base",
+               "constant value": 0.85
+            }
+         },
+         {
+            "name": "jbrono2_b",
+            "__reaction": "BrONO2 + hv -> BrO + NO2",
+            "cross section": {
+               "netcdf files": [
+                 { "file path": "data/cross_sections/BrONO2_1.nc" }
+               ],
+               "type": "base"
+            },
+            "quantum yield": {
+               "type": "base",
+               "constant value": 0.15
+            }
+         },
+         {
+            "name": "jccl4",
+            "__reaction": "CCl4 + hv -> Products",
+            "cross section": {
+               "netcdf files": [
+                 { "file path": "data/cross_sections/CCl4_1.nc" }
+               ],
+               "type": "CCl4+hv->Products"
+            },
+            "quantum yield": {
+               "type": "base",
+               "constant value": 1.0
+            }
+         },
+         {
+            "name": "jcf2clbr",
+            "__reaction": "CF2BrCl + hv -> Products",
+            "cross section": {
+               "netcdf files": [
+                 { "file path": "data/cross_sections/CF2BrCl_1.nc" }
+               ],
+               "type": "base"
+            },
+            "quantum yield": {
+               "type": "base",
+               "constant value": 1.0
+            }
+         },
+         {
+            "name": "jcf3br",
+            "__reaction": "CF3Br + hv -> Products",
+            "cross section": {
+               "netcdf files": [
+                 { "file path": "data/cross_sections/CF3Br_1.nc" }
+               ],
+               "type": "base"
+            },
+            "quantum yield": {
+               "type": "base",
+               "constant value": 1.0
+            }
+         },
+         {
+            "name": "jcfcl3",
+            "__reaction": "CCl3F + hv -> Products",
+            "cross section": {
+               "netcdf files": [
+                 { "file path": "data/cross_sections/CFC-11_1.nc" }
+               ],
+               "type": "CCl3F+hv->Products"
+            },
+            "quantum yield": {
+               "type": "base",
+               "constant value": 1.0
+            }
+         },
+         {
+            "name": "jcfc113",
+            "__reaction": "CFC-113 + hv -> Products",
+            "cross section": {
+               "netcdf files": [
+                 { "file path": "data/cross_sections/CFC-113_1.nc" }
+               ],
+               "type": "tint"
+            },
+            "quantum yield": {
+               "type": "base",
+               "constant value": 1.0
+            }
+         },
+         {
+            "name": "jcfc114",
+            "__reaction": "CFC-114 + hv -> Products",
+            "cross section": {
+               "netcdf files": [
+                 { "file path": "data/cross_sections/CFC-114_1.nc" }
+               ],
+               "type": "tint"
+            },
+            "quantum yield": {
+               "type": "base",
+               "constant value": 1.0
+            }
+         },
+         {
+            "name": "jcfc115",
+            "__reaction": "CFC-115 + hv -> Products",
+            "cross section": {
+               "netcdf files": [
+                 { "file path": "data/cross_sections/CFC-115_1.nc" }
+               ],
+               "type": "base"
+            },
+            "quantum yield": {
+               "type": "base",
+               "constant value": 1.0
+            }
+         },
+         {
+            "name": "jcf2cl2",
+            "__reaction": "CCl2F2 + hv -> Products",
+            "cross section": {
+               "netcdf files": [
+                 { "file path": "data/cross_sections/CFC-12_1.nc" }
+               ],
+               "type": "CCl3F+hv->Products"
+            },
+            "quantum yield": {
+               "type": "base",
+               "constant value": 1.0
+            }
+         },
+         {
+            "name": "jch2br2",
+            "__reaction": "CH2BR2 + hv -> 2*BR",
+            "cross section": {
+               "type": "temperature based",
+               "netcdf file": "data/cross_sections/CH2BR2_1.nc",
+               "parameterization": {
+                  "AA": [ -70.211776,  1.940326e-1, 2.726152e-3, -1.695472e-5, 2.500066e-8  ],
+                  "BB": [   2.899280, -4.327724e-2, 2.391599e-4, -5.807506e-7, 5.244883e-10 ],
+                  "lp": [        0.0,          1.0,          2.0,         3.0,          4.0 ],
+                  "minimum wavelength": 210.0,
+                  "maximum wavelength": 290.0,
+                  "temperature ranges": [
+                     {
+                        "maximum": 209.999999999999,
+                        "fixed value": 210.0
+                     },
+                     {
+                        "minimum": 210,
+                        "maximum": 300
+                     },
+                     {
+                        "minimum": 300.00000000001,
+                        "fixed value": 300.0
+                     }
+                  ]
+               }
+            },
+            "quantum yield": {
+               "type": "base",
+               "constant value": 1.0
+            }
+         },
+         {
+            "name": "jch3br",
+            "__reaction": "CH3Br + hv -> Products",
+            "cross section": {
+               "netcdf files": [
+                 { "file path": "data/cross_sections/CH3Br_1.nc" }
+               ],
+               "type": "base"
+            },
+            "quantum yield": {
+               "type": "base",
+               "constant value": 1.0
+            }
+         },
+         {
+            "name": "jch3ccl3",
+            "__reaction": "CH3CCl3+hv->Products",
+            "cross section": {
+               "netcdf files": [
+                 { "file path": "data/cross_sections/CH3CCl3_1.nc" }
+               ],
+               "type": "tint"
+            },
+            "quantum yield": {
+               "type": "base",
+               "constant value": 1.0
+            }
+         },
+         {
+            "name": "jch3cl",
+            "__reaction": "CH3Cl + hv -> Products",
+            "cross section": {
+               "netcdf files": [
+                 { "file path": "data/cross_sections/CH3Cl_1.nc" }
+               ],
+               "type": "tint"
+            },
+            "quantum yield": {
+               "type": "base",
+               "constant value": 1.0
+            }
+         },
+         {
+            "name": "jchbr3",
+            "__reaction": "CHBr3 + hv -> Products",
+            "cross section": {
+               "netcdf files": [
+                 { "file path": "data/cross_sections/CHBr3_1.nc" }
+               ],
+               "type": "CHBr3+hv->Products",
+               "lower extrapolation": {
+                  "type": "boundary"
+               }
+            },
+            "quantum yield": {
+               "type": "base",
+               "constant value": 1.0
+            }
+         },
+         {
+            "name": "jcl2",
+            "__reaction": "Cl2 + hv -> Cl + Cl",
+            "cross section": {
+               "type": "Cl2+hv->Cl+Cl"
+            },
+            "quantum yield": {
+               "type": "base",
+               "constant value": 1.0
+            }
+         },
+         {
+            "name": "jcl2o2",
+            "__reaction": "ClOOCl + hv -> Cl + ClOO",
+            "__comments": "TODO - this doesn't exactly match the products in TS1",
+            "cross section": {
+               "netcdf files": [
+                  { "file path": "data/cross_sections/ClOOCl_1.nc" }
+               ],
+               "type": "base"
+            },
+            "quantum yield": {
+               "type": "base",
+               "constant value": 1.0
+            }
+         },
+         {
+            "name": "jclo",
+            "__reaction": "ClO + hv -> Cl + O(1D)",
+            "cross section": {
+               "netcdf files": [
+                 { "file path": "data/cross_sections/ClO_1.nc" }
+               ],
+               "type": "tint"
+            },
+            "quantum yield": {
+               "type": "ClO+hv->Cl+O(1D)"
+            }
+         },
+         {
+            "name": "jclono2_a",
+            "__reaction": "ClONO2 + hv -> Cl + NO3",
+            "cross section": {
+               "netcdf files": [
+                 { "file path": "data/cross_sections/ClONO2_1.nc" }
+               ],
+               "type": "ClONO2"
+            },
+            "quantum yield": {
+               "type": "ClONO2+hv->Cl+NO3"
+            }
+         },
+         {
+            "name": "jclono2_b",
+            "__reaction": "ClONO2 + hv -> ClO + NO2",
+            "cross section": {
+               "netcdf files": [
+                 { "file path": "data/cross_sections/ClONO2_1.nc" }
+               ],
+               "type": "ClONO2"
+            },
+            "quantum yield": {
+               "type": "ClONO2+hv->ClO+NO2"
+            }
+         },
+         {
+            "name": "jcof2",
+            "__reaction": "CF2O + hv -> Products",
+            "cross section": {
+               "netcdf files": [
+                 { "file path": "data/cross_sections/CF2O_1.nc" }
+               ],
+               "type": "base"
+            },
+            "quantum yield": {
+               "type": "base",
+               "constant value": 1.0
+            }
+         },
+         {
+            "name": "jcofcl",
+            "__reaction": "CClFO + hv -> Products",
+            "cross section": {
+               "netcdf files": [
+                 { "file path": "data/cross_sections/CClFO_1.nc" }
+               ],
+               "type": "base"
+            },
+            "quantum yield": {
+               "type": "base",
+               "constant value": 1.0
+            }
+         },
+         {
+            "name": "jh2402",
+            "__reaction": "H2402 + hv -> 2*BR + 2*COF2",
+            "__comments": "TUV data set name CF2BrCF2Br",
+            "cross section": {
+               "netcdf files": [
+                  { "file path": "data/cross_sections/CF2BrCF2Br_1.nc" }
+               ],
+               "type": "base"
+            },
+            "quantum yield": {
+               "type": "base",
+               "constant value": 1.0
+            }
+         },
+         {
+            "name": "jhcfc141b",
+            "__reaction": "HCFC-141b + hv -> Products",
+            "cross section": {
+               "netcdf files": [
+                 { "file path": "data/cross_sections/CH3CFCl2_1.nc" }
+               ],
+               "type": "base"
+            },
+            "quantum yield": {
+               "type": "base",
+               "constant value": 1.0
+            }
+         },
+         {
+            "name": "jhcfc142b",
+            "__reaction": "HCFC-142b + hv -> Products",
+            "cross section": {
+               "netcdf files": [
+                 { "file path": "data/cross_sections/CH3CF2Cl_1.nc" }
+               ],
+               "type": "HCFC+hv->Products"
+            },
+            "quantum yield": {
+               "type": "base",
+               "constant value": 1.0
+            }
+         },
+         {
+            "name": "jhcfc22",
+            "__reaction": "HCFC-22 + hv -> Products",
+            "cross section": {
+               "netcdf files": [
+                 { "file path": "data/cross_sections/CHClF2_1.nc" }
+               ],
+               "type": "tint"
+            },
+            "quantum yield": {
+               "type": "base",
+               "constant value": 1.0
+            }
+         },
+         {
+            "name": "jhcl",
+            "__reaction": "HCl + hv -> H + Cl",
+            "cross section": {
+               "netcdf files": [
+                 { "file path": "data/cross_sections/HCl_1.nc" }
+               ],
+               "type": "base"
+            },
+            "quantum yield": {
+               "type": "base",
+               "constant value": 1.0
+            }
+         },
+         {
+            "name": "jhobr",
+            "__reaction": "HOBr + hv -> OH + Br",
+            "cross section": {
+               "type": "HOBr+hv->OH+Br"
+            },
+            "quantum yield": {
+               "type": "base",
+               "constant value": 1.0
+            }
+         },
+         {
+            "name": "jhocl",
+            "__reaction": "HOCl + hv -> HO + Cl",
+            "cross section": {
+               "netcdf files": [
+                 { "file path": "data/cross_sections/HOCl_1.nc" }
+               ],
+               "type": "base"
+            },
+            "quantum yield": {
+               "type": "base",
+               "constant value": 1.0
+            }
+         },
+         {
+            "name": "joclo",
+            "__reaction": "OClO + hv -> Products",
+            "cross section": {
+               "netcdf files": [
+                 { "file path": "data/cross_sections/OClO_1.nc" },
+                 { "file path": "data/cross_sections/OClO_2.nc" },
+                 { "file path": "data/cross_sections/OClO_3.nc" }
+               ],
+               "type": "OClO+hv->Products"
+            },
+            "quantum yield": {
+               "type": "base",
+               "constant value": 1.0
+            }
+         },
+         {
+            "name": "jho2no2_a",
+            "__reaction": "HNO4 + hv -> OH + NO3",
+            "__comments": "TODO Doug's data sets have special temperature dependence - need new type?",
+            "cross section": {
+               "netcdf files": [
+                 { "file path": "data/cross_sections/HNO4_1.nc" }
+               ],
+               "type": "base"
+            },
+            "quantum yield": {
+               "type": "base",
+               "constant value": 0.2
+            }
+         },
+         {
+            "name": "jho2no2_b",
+            "__reaction": "HNO4 + hv -> HO2 + NO2",
+            "__comments": "TODO Doug's data sets have special temperature dependence - need new type?",
+            "cross section": {
+               "netcdf files": [
+                 { "file path": "data/cross_sections/HNO4_1.nc" }
+               ],
+               "type": "base"
+            },
+            "quantum yield": {
+               "type": "base",
+               "constant value": 0.8
+            }
+         },
+         {
+            "name": "jh2o_a",
+            "__reaction": "H2O + hv -> OH + H",
+            "cross section": {
+               "type": "base",
+               "merge data": true,
+               "netcdf files": [
+                  {
+                     "file path": "data/cross_sections/H2O_1.nc",
+                     "zero above": 183.0
+                  },
+                  {
+                     "file path": "data/cross_sections/H2O_2.nc",
+                     "zero below": 183.00000000001,
+                     "zero above": 190.0
+                  },
+                  {
+                     "file path": "data/cross_sections/H2O_3.nc",
+                     "zero below": 190.00000000001
+                  }
+               ]
+            },
+            "quantum yield" : {
+               "type": "base",
+               "netcdf files": [ "data/quantum_yields/H2O_H_OH.nc" ]
+            }
+         },
+         {
+            "name": "jh2o_b",
+            "__reaction": "H2O + hv -> H2 + O1D",
+            "cross section": {
+               "type": "base",
+               "merge data": true,
+               "netcdf files": [
+                  {
+                     "file path": "data/cross_sections/H2O_1.nc",
+                     "zero above": 183.0
+                  },
+                  {
+                     "file path": "data/cross_sections/H2O_2.nc",
+                     "zero below": 183.00000000001,
+                     "zero above": 190.0
+                  },
+                  {
+                     "file path": "data/cross_sections/H2O_3.nc",
+                     "zero below": 190.00000000001
+                  }
+               ]
+            },
+            "quantum yield" : {
+               "type": "base",
+               "netcdf files": [ "data/quantum_yields/H2O_H2_O1D.nc" ]
+            }
+         },
+         {
+            "name": "jh2o_c",
+            "__reaction": "H2O + hv -> 2*H + O",
+            "cross section": {
+               "type": "base",
+               "merge data": true,
+               "netcdf files": [
+                  {
+                     "file path": "data/cross_sections/H2O_1.nc",
+                     "zero above": 183.0
+                  },
+                  {
+                     "file path": "data/cross_sections/H2O_2.nc",
+                     "zero below": 183.00000000001,
+                     "zero above": 190.0
+                  },
+                  {
+                     "file path": "data/cross_sections/H2O_3.nc",
+                     "zero below": 190.00000000001
+                  }
+               ]
+            },
+            "quantum yield" : {
+               "type": "base",
+               "netcdf files": [ "data/quantum_yields/H2O_2H_O3P.nc" ]
+            }
+         },
+         {
+            "name": "jch4_a",
+            "__reaction": "CH4 + hv -> H + CH3O2",
+            "cross section": {
+               "type": "base",
+               "netcdf files": [
+                  { "file path": "data/cross_sections/CH4_1.nc" }
+               ]
+            },
+            "quantum yield": {
+               "type": "base",
+               "constant value": 0.55
+            }
+         },
+         {
+            "name": "jch4_b",
+            "__reaction": "CH4 + hv -> 1.44*H2 + 0.18*CH2O + 0.18*O + 0.33*OH + 0.33*H + 0.44*CO2 + 0.38*CO + 0.05*H2O",
+            "cross section": {
+               "type": "base",
+               "netcdf files": [
+                  { "file path": "data/cross_sections/CH4_1.nc" }
+               ]
+            },
+            "quantum yield": {
+               "type": "base",
+               "constant value": 0.45
+            }
+         },
+         {
+            "name": "jco2",
+            "__reaction": "CO2 + hv -> CO + O",
+            "cross section": {
+               "type": "base",
+               "netcdf files": [
+                  { "file path": "data/cross_sections/CO2_1.nc" }
+               ]
+            },
+            "quantum yield": {
+               "type": "base",
+               "constant value": 1.0
+            }
+         },
+         {
+            "name": "jhbr",
+            "__reaction": "HBR + hv -> BR + H",
+            "cross section": {
+               "type": "base",
+               "netcdf files": [
+                  { "file path": "data/cross_sections/HBr_1.nc" }
+               ]
+            },
+            "quantum yield": {
+               "type": "base",
+               "constant value": 1.0
+            }
+         },
+         {
+            "name": "jhf",
+            "__reaction": "HF + hv -> H + F",
+            "cross section": {
+               "type": "base",
+               "netcdf files": [
+                  { "file path": "data/cross_sections/HF_1.nc" }
+               ]
+            },
+            "quantum yield": {
+               "type": "base",
+               "constant value": 1.0
+            }
+         },
+         {
+            "name": "jsf6",
+            "__reaction": "SF6 + hv -> sink",
+            "cross section": {
+               "type": "base",
+               "netcdf files": [
+                  { "file path": "data/cross_sections/SF6_1.nc" }
+               ]
+            },
+            "quantum yield": {
+               "type": "base",
+               "constant value": 1.0
+            }
+         },
+      ]
+   },
+   "__CAM options": {
+     "aliasing": {
+       "default matching": "backup",
+       "pairs": [
+           {
+              "to": "jno_i",
+              "__reaction": "NO + hv ->  NOp + e",
+              "from": "jno2",
+              "scale by": 0.0
+           },
+        ]
+     }
+   }
+}

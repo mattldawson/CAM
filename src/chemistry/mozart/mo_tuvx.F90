@@ -5,12 +5,17 @@ module mo_tuvx
 
   use musica_map,              only : map_t
   use musica_string,           only : string_t
-  use ppgrid,                  only : pver                ! number of vertical layers
+  use ppgrid,                  only : pver,pverp                ! number of vertical layers
   use shr_kind_mod,            only : r8 => shr_kind_r8, cl=>shr_kind_cl
   use tuvx_core,               only : core_t
   use tuvx_grid_from_host,     only : grid_updater_t
   use tuvx_profile_from_host,  only : profile_updater_t
   use tuvx_radiator_from_host, only : radiator_updater_t
+  use cam_history,    only : addfld, outfld
+  use physics_buffer, only : pbuf_add_field, dtype_r8
+  use physics_buffer, only : physics_buffer_desc
+  use physics_buffer, only : pbuf_set_field, pbuf_get_field
+  use infnan,         only : nan, assignment(=)
 
   implicit none
 
@@ -127,6 +132,32 @@ module mo_tuvx
   character(len=cl) :: tuvx_config_path = 'NONE'  ! absolute path to TUVX configuration file
   logical, protected :: tuvx_active = .false.
 
+  ! photo-chemical heating parameters  joule-secs       m/sec
+  real(r8), parameter :: hc          = 6.62608e-34_r8 * 2.9979e8_r8 / 1.e-9_r8
+  real(r8), parameter :: wc_o2_a     = 175.05_r8   ! (nm)
+  real(r8), parameter :: wc_o2_b     = 242.37_r8   ! (nm)
+  real(r8), parameter :: wc_o3_a     = 310.32_r8   ! (nm)
+  real(r8), parameter :: wc_o3_b     = 1179.87_r8  ! (nm)
+
+  real(r8), allocatable :: bde_o2_a(:)
+  real(r8), allocatable :: bde_o2_b(:)
+  real(r8), allocatable :: bde_o3_a(:)
+  real(r8), allocatable :: bde_o3_b(:)
+
+  integer :: cpe_jo2a_ndx = -1
+  integer :: cpe_jo2b_ndx = -1
+  integer :: cpe_jo3a_ndx = -1
+  integer :: cpe_jo3b_ndx = -1
+
+  integer :: ndx_jo2_a = -1
+  integer :: ndx_jo2_b = -1
+  integer :: ndx_jo3_a = -1
+  integer :: ndx_jo3_b = -1
+
+  integer :: nrates = 0
+  integer :: nwaves = 0
+
+
 !================================================================================================
 contains
 !================================================================================================
@@ -137,12 +168,18 @@ contains
   subroutine tuvx_register( )
 
     use mo_jeuv,        only : nIonRates
-    use physics_buffer, only : pbuf_add_field, dtype_r8
     use ppgrid,         only : pcols ! maximum number of columns
+
+    if( .not. tuvx_active ) return
 
     ! add photo-ionization rates to physics buffer for WACCMX Ionosphere module
     call pbuf_add_field( 'IonRates', 'physpkg', dtype_r8, (/ pcols, pver, nIonRates /), &
                          ion_rates_pbuf_index ) ! Ionization rates for O+, O2+, N+, N2+, NO+
+
+    call pbuf_add_field( 'CPE_jO2a', 'global', dtype_r8, (/ pcols, pver /), cpe_jo2a_ndx )
+    call pbuf_add_field( 'CPE_jO2b', 'global', dtype_r8, (/ pcols, pver /), cpe_jo2b_ndx )
+    call pbuf_add_field( 'CPE_jO3a', 'global', dtype_r8, (/ pcols, pver /), cpe_jo3a_ndx )
+    call pbuf_add_field( 'CPE_jO3b', 'global', dtype_r8, (/ pcols, pver /), cpe_jo3b_ndx )
 
   end subroutine tuvx_register
 
@@ -211,7 +248,7 @@ contains
   !-----------------------------------------------------------------------
   ! Initializes TUV-x for photolysis calculations
   !-----------------------------------------------------------------------
-  subroutine tuvx_init( photon_file, electron_file, max_solar_zenith_angle )
+  subroutine tuvx_init( photon_file, electron_file, max_solar_zenith_angle, pbuf2d )
 
 #ifdef HAVE_MPI
     use mpi
@@ -241,6 +278,7 @@ contains
     character(len=*), intent(in) :: electron_file ! electron file used in extended-UV module setup
     real(r8),         intent(in) :: max_solar_zenith_angle ! cutoff solar zenith angle for
                                                            !    photo rate calculations [degrees]
+    type(physics_buffer_desc), pointer :: pbuf2d(:,:) ! Physics buffer
 
     character(len=*), parameter :: my_name = "TUV-x wrapper initialization"
     class(core_t), pointer :: core
@@ -249,6 +287,7 @@ contains
     type(config_t) :: tuvx_config, cam_config, map_config
     type(map_t) :: map
     class(grid_t), pointer :: height
+    class(grid_t), pointer :: wavelength
     class(grid_warehouse_t), pointer :: cam_grids
     class(profile_warehouse_t), pointer :: cam_profiles
     class(radiator_warehouse_t), pointer :: cam_radiators
@@ -257,11 +296,23 @@ contains
     type(string_t) :: required_keys(1), optional_keys(2)
     logical, save :: is_initialized = .false.
 
+    type(string_t), allocatable :: labels(:)
+    character(len=16) :: label
+    integer :: i
+    real(r8) :: nanval
+
     if( .not. tuvx_active ) return
     if( is_initialized ) return
     is_initialized = .true.
 
-    call die_msg( 121631567, "TUV-x is not yet ready for use in CAM" )
+    nanval=nan
+
+    call pbuf_set_field(pbuf2d, ion_rates_pbuf_index, nanval)
+
+    call pbuf_set_field(pbuf2d, cpe_jo2a_ndx, 0.0_r8)
+    call pbuf_set_field(pbuf2d, cpe_jo2b_ndx, 0.0_r8)
+    call pbuf_set_field(pbuf2d, cpe_jo3a_ndx, 0.0_r8)
+    call pbuf_set_field(pbuf2d, cpe_jo3b_ndx, 0.0_r8)
 
     if( is_main_task ) write(iulog,*) "Beginning TUV-x Initialization"
 
@@ -385,7 +436,6 @@ contains
 
     end associate
     end do
-    deallocate( cam_grids     )
     deallocate( cam_profiles  )
     deallocate( cam_radiators )
 
@@ -418,6 +468,49 @@ contains
     ! set up diagnostic output of photolysis rates
     ! ============================================
     call initialize_diagnostics( tuvx_ptrs( 1 ) )
+
+    wavelength => cam_grids%get_grid( "wavelength", "nm" )
+    nwaves = size(wavelength%mid_)
+
+    ! calc bond disociation energies for photo-chem heating
+
+    labels = tuvx_ptrs(1)%core_%photolysis_reaction_labels( )
+    nrates = size(labels)
+
+    associate( wc => wavelength%mid_ )
+
+    do i = 1,size(labels)
+
+       label = trim(labels(i)%to_char())
+
+       select case (label)
+       case('jo2_a')
+          ndx_jo2_a = i
+          allocate( bde_o2_a(size(wc)) )
+          bde_o2_a(:) = max( 0._r8, hc*(wc_o2_a - wc(:))/(wc_o2_a*wc(:)) ) ! joules
+          call addfld('CPE_jO2a',(/ 'lev' /), 'A', 'joules sec-1', trim(label)//' chemical potential energy')
+       case('jo2_b')
+          ndx_jo2_b = i
+          allocate( bde_o2_b(size(wc)) )
+          bde_o2_b(:) = max( 0._r8, hc*(wc_o2_b - wc(:))/(wc_o2_b*wc(:)) ) ! joules
+          call addfld('CPE_jO2b',(/ 'lev' /), 'A', 'joules sec-1', trim(label)//' chemical potential energy')
+       case('jo3_a')
+          ndx_jo3_a = i
+          allocate( bde_o3_a(size(wc)) )
+          bde_o3_a(:) = max( 0._r8, hc*(wc_o3_a - wc(:))/(wc_o3_a*wc(:)) ) ! joules
+          call addfld('CPE_jO3a',(/ 'lev' /), 'A', 'joules sec-1', trim(label)//' chemical potential energy')
+       case('jo3_b')
+          ndx_jo3_b = i
+          allocate( bde_o3_b(size(wc)) )
+          bde_o3_b(:) = max( 0._r8, hc*(wc_o3_b - wc(:))/(wc_o3_b*wc(:)) ) ! joules
+          call addfld('CPE_jO3b',(/ 'lev' /), 'A', 'joules sec-1', trim(label)//' chemical potential energy')
+       end select
+
+    end do
+
+    end associate
+
+    deallocate( cam_grids     )
 
     if( is_main_task ) call log_initialization( )
 
@@ -459,7 +552,6 @@ contains
                                  nfs,       & ! number of fixed species
                                  nabscol      ! number of absorbing species (radiators)
     use physics_types,    only : physics_state
-    use physics_buffer,   only : physics_buffer_desc
     use ppgrid,           only : pcols        ! maximum number of columns
     use shr_const_mod,    only : pi => shr_const_pi
     use spmd_utils,       only : main_task => masterprocid, &
@@ -493,7 +585,33 @@ contains
     integer  :: i_level ! vertical level index
     real(r8) :: sza     ! solar zenith angle [degrees]
 
+    real(r8) :: bde(nwaves,nrates)
+    real(r8) :: cpe_rates(ncol,pverp+1,nrates)
+
+    real(r8), pointer :: cpe_jo2a(:,:)
+    real(r8), pointer :: cpe_jo2b(:,:)
+    real(r8), pointer :: cpe_jo3a(:,:)
+    real(r8), pointer :: cpe_jo3b(:,:)
+
     if( .not. tuvx_active ) return
+
+    bde(:,:) = 0._r8
+    cpe_rates(:,:,:) = 0._r8
+
+    if (ndx_jo2_a>0) bde(:,ndx_jo2_a) = bde_o2_a(:)
+    if (ndx_jo2_b>0) bde(:,ndx_jo2_b) = bde_o2_b(:)
+    if (ndx_jo3_a>0) bde(:,ndx_jo3_a) = bde_o3_a(:)
+    if (ndx_jo3_b>0) bde(:,ndx_jo3_b) = bde_o3_b(:)
+
+    call pbuf_get_field(pbuf, cpe_jo2a_ndx, cpe_jo2a)
+    call pbuf_get_field(pbuf, cpe_jo2b_ndx, cpe_jo2b)
+    call pbuf_get_field(pbuf, cpe_jo3a_ndx, cpe_jo3a)
+    call pbuf_get_field(pbuf, cpe_jo3b_ndx, cpe_jo3b)
+
+    cpe_jo2a(:,:) = 0._r8
+    cpe_jo2b(:,:) = 0._r8
+    cpe_jo3a(:,:) = 0._r8
+    cpe_jo3b(:,:) = 0._r8
 
     associate( tuvx => tuvx_ptrs( thread_id( ) ) )
 
@@ -533,7 +651,8 @@ contains
         call tuvx%core_%run( solar_zenith_angle = sza, &
                              earth_sun_distance = earth_sun_distance, &
                              photolysis_rate_constants = &
-                             tuvx%photo_rates_(i_col,:,1:tuvx%n_photo_rates_) )
+                             tuvx%photo_rates_(i_col,:,1:tuvx%n_photo_rates_), &
+                             bde=bde, cpe_rates=cpe_rates(i_col,:,:) )
 
         ! ==============================
         ! Calculate the extreme-UV rates
@@ -581,6 +700,36 @@ contains
       call output_diagnostics( tuvx, ncol, lchnk )
 
     end associate
+
+    if (ndx_jo2_a>0) then
+       do i_level = 1, pver
+          cpe_jo2a(:ncol,i_level) = 0.5_r8 * ( cpe_rates(:ncol,pver-i_level+2,ndx_jo2_a) &
+                                             + cpe_rates(:ncol,pver-i_level+1,ndx_jo2_a) )
+       end do
+       call outfld('CPE_jO2a', cpe_jo2a(:ncol,:), ncol, lchnk )
+    end if
+    if (ndx_jo2_b>0) then
+       do i_level = 1, pver
+          cpe_jo2b(:ncol,i_level) = 0.5_r8 * ( cpe_rates(:ncol,pver-i_level+2,ndx_jo2_b) &
+                                             + cpe_rates(:ncol,pver-i_level+1,ndx_jo2_b) )
+       end do
+       call outfld('CPE_jO2b', cpe_jo2b(:ncol,:), ncol, lchnk )
+    end if
+
+    if (ndx_jo3_a>0) then
+       do i_level = 1, pver
+          cpe_jo3a(:ncol,i_level) = 0.5_r8 * ( cpe_rates(:ncol,pver-i_level+2,ndx_jo3_a) &
+                                             + cpe_rates(:ncol,pver-i_level+1,ndx_jo3_a) )
+       end do
+       call outfld('CPE_jO3a', cpe_jo3a(:ncol,:), ncol, lchnk )
+    end if
+    if (ndx_jo3_b>0) then
+       do i_level = 1, pver
+          cpe_jo3b(:ncol,i_level) = 0.5_r8 * ( cpe_rates(:ncol,pver-i_level+2,ndx_jo3_b) &
+                                             + cpe_rates(:ncol,pver-i_level+1,ndx_jo3_b) )
+       end do
+       call outfld('CPE_jO3b', cpe_jo3b(:ncol,:), ncol, lchnk )
+    end if
 
   end subroutine tuvx_get_photo_rates
 
@@ -729,7 +878,6 @@ contains
   !-----------------------------------------------------------------------
   subroutine initialize_diagnostics( this )
 
-    use cam_history,   only : addfld
     use musica_assert, only : assert
     use musica_string, only : string_t
 
@@ -757,6 +905,7 @@ contains
     call assert( 522515214, i_label == size( all_labels ) + 1 )
     allocate( diagnostics( size( all_labels ) ) )
     do i_label = 1, size( all_labels )
+     !  print*,'FVDBG.initialize_diagnostics tuvx label : ',trim( all_labels( i_label )%to_char( ) )
       diagnostics( i_label )%name_  = trim( all_labels( i_label )%to_char( ) )
       diagnostics( i_label )%index_ = i_label
       call addfld( "tuvx_"//diagnostics( i_label )%name_, (/ 'lev' /), 'A', 'sec-1', &
@@ -879,8 +1028,6 @@ contains
   ! Outputs diagnostic information for the current time step
   !-----------------------------------------------------------------------
   subroutine output_diagnostics( this, ncol, lchnk )
-
-    use cam_history, only : outfld
 
     type(tuvx_ptr), intent(in) :: this
     integer,        intent(in) :: ncol  ! number of active columns on this thread

@@ -154,9 +154,7 @@ module mo_tuvx
   integer :: ndx_jo3_a = -1
   integer :: ndx_jo3_b = -1
 
-  integer :: nrates = 0
   integer :: nwaves = 0
-
 
 !================================================================================================
 contains
@@ -469,14 +467,13 @@ contains
     call initialize_diagnostics( tuvx_ptrs( 1 ) )
 
     wavelength => cam_grids%get_grid( "wavelength", "nm" )
-    nwaves = size(wavelength%mid_)
 
     ! calc bond disociation energies for photo-chem heating
 
     labels = tuvx_ptrs(1)%core_%photolysis_reaction_labels( )
-    nrates = size(labels)
 
     associate( wc => wavelength%mid_ )
+    nwaves = size(wc)
 
     do i = 1,size(labels)
 
@@ -485,22 +482,22 @@ contains
        select case (label)
        case('jo2_a')
           ndx_jo2_a = i
-          allocate( bde_o2_a(size(wc)) )
+          allocate( bde_o2_a(nwaves) )
           bde_o2_a(:) = max( 0._r8, hc*(wc_o2_a - wc(:))/(wc_o2_a*wc(:)) ) ! joules
           call addfld('CPE_jO2a',(/ 'lev' /), 'A', 'joules sec-1', trim(label)//' chemical potential energy')
        case('jo2_b')
           ndx_jo2_b = i
-          allocate( bde_o2_b(size(wc)) )
+          allocate( bde_o2_b(nwaves) )
           bde_o2_b(:) = max( 0._r8, hc*(wc_o2_b - wc(:))/(wc_o2_b*wc(:)) ) ! joules
           call addfld('CPE_jO2b',(/ 'lev' /), 'A', 'joules sec-1', trim(label)//' chemical potential energy')
        case('jo3_a')
           ndx_jo3_a = i
-          allocate( bde_o3_a(size(wc)) )
+          allocate( bde_o3_a(nwaves) )
           bde_o3_a(:) = max( 0._r8, hc*(wc_o3_a - wc(:))/(wc_o3_a*wc(:)) ) ! joules
           call addfld('CPE_jO3a',(/ 'lev' /), 'A', 'joules sec-1', trim(label)//' chemical potential energy')
        case('jo3_b')
           ndx_jo3_b = i
-          allocate( bde_o3_b(size(wc)) )
+          allocate( bde_o3_b(nwaves) )
           bde_o3_b(:) = max( 0._r8, hc*(wc_o3_b - wc(:))/(wc_o3_b*wc(:)) ) ! joules
           call addfld('CPE_jO3b',(/ 'lev' /), 'A', 'joules sec-1', trim(label)//' chemical potential energy')
        end select
@@ -509,7 +506,7 @@ contains
 
     end associate
 
-    deallocate( cam_grids     )
+    deallocate(cam_grids)
 
     if( is_main_task ) call log_initialization( )
 
@@ -584,8 +581,8 @@ contains
     integer  :: i_level ! vertical level index
     real(r8) :: sza     ! solar zenith angle [degrees]
 
-    real(r8) :: bde(nwaves,nrates)
-    real(r8) :: cpe_rates(ncol,pverp+1,nrates)
+    real(r8) :: bde(nwaves,phtcnt)
+    real(r8) :: cpe_rates(ncol,pverp+1,phtcnt)
 
     real(r8), pointer :: cpe_jo2a(:,:)
     real(r8), pointer :: cpe_jo2b(:,:)
@@ -650,7 +647,7 @@ contains
         call tuvx%core_%run( solar_zenith_angle = sza, &
                              earth_sun_distance = earth_sun_distance, &
                              photolysis_rate_constants = &
-                             tuvx%photo_rates_(i_col,:,1:tuvx%n_photo_rates_), &
+                             tuvx%photo_rates_(i_col,pverp+1:1:-1,1:tuvx%n_photo_rates_), &
                              bde=bde, cpe_rates=cpe_rates(i_col,:,:) )
 
         ! ==============================
@@ -664,8 +661,7 @@ contains
                                     species_vmr(i_col,:,:), &
                                     height_mid(i_col,:), &
                                     height_int(i_col,:), &
-                                    tuvx%photo_rates_(i_col,pver+1:2:-1,euv_begin:euv_end) )
-                          !          tuvx%photo_rates_(i_col,2:pver+1,euv_begin:euv_end) )
+                                    tuvx%photo_rates_(i_col,2:pver+1,euv_begin:euv_end) )
         end associate
         end if
 
@@ -681,7 +677,7 @@ contains
                               tuvx%photo_rates_(i_col,2:pver+1,jno_index) )
         end if
 
-     end do
+      end do
 
       ! =====================
       ! Filter negative rates
@@ -693,7 +689,7 @@ contains
       ! ============================================
       do i_col = 1, ncol
         do i_level = 1, pver
-          call tuvx%photo_rate_map_%apply( tuvx%photo_rates_(i_col,pver-i_level+2,:), &
+          call tuvx%photo_rate_map_%apply( tuvx%photo_rates_(i_col,i_level+1,:), &
                                            photolysis_rates(i_col,i_level,:) )
         end do
       end do

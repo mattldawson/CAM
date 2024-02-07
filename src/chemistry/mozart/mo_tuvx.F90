@@ -674,7 +674,7 @@ contains
                               fixed_species_conc(i_col,:,:), &
                               species_vmr(i_col,:,:), &
                               height_int(i_col,:), &
-                              tuvx%photo_rates_(i_col,2:pver+1,jno_index) )
+                              tuvx%photo_rates_(i_col,pver+1:2:-1,jno_index) )
         end if
 
       end do

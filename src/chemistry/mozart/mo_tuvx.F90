@@ -16,6 +16,7 @@ module mo_tuvx
   use physics_buffer, only : physics_buffer_desc
   use physics_buffer, only : pbuf_set_field, pbuf_get_field
   use infnan,         only : nan, assignment(=)
+  use cam_abortutils, only : endrun
 
   implicit none
 
@@ -191,7 +192,6 @@ contains
 #ifdef HAVE_MPI
     use mpi
 #endif
-    use cam_abortutils, only : endrun
     use cam_logfile,    only : iulog ! log file output unit
     use namelist_utils, only : find_group_name
     use spmd_utils,     only : mpicom, is_main_task => masterproc, &
@@ -905,7 +905,6 @@ contains
     call assert( 522515214, i_label == size( all_labels ) + 1 )
     allocate( diagnostics( size( all_labels ) ) )
     do i_label = 1, size( all_labels )
-     !  print*,'FVDBG.initialize_diagnostics tuvx label : ',trim( all_labels( i_label )%to_char( ) )
       diagnostics( i_label )%name_  = trim( all_labels( i_label )%to_char( ) )
       diagnostics( i_label )%index_ = i_label
 
@@ -1042,7 +1041,7 @@ contains
 
     do i_diag = 1, size( diagnostics )
     associate( diag => diagnostics( i_diag ) )
-      call outfld( "tuvx_"//diag%name_, this%photo_rates_(:ncol,pver+1:2:-1,diag%index_), &
+      call outfld( "tuvx_"//diag%name_, this%photo_rates_(:ncol,2:pver+1,diag%index_), &
                    ncol, lchnk )
     end associate
     end do
@@ -1321,7 +1320,7 @@ contains
     call rad_cnst_get_info( 0, nmodes = n_modes )
     if( n_modes > 0 .and. .not. do_aerosol .and. .not. disable_aerosols ) then
       do_aerosol = .true.
-      do_aerosol = .false. ! temporarily disable aerosols
+      !do_aerosol = .false. ! temporarily disable aerosols
       ! TODO update to use new aerosol_optics class
       ! call modal_aer_opt_init( )
     else

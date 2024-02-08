@@ -271,6 +271,7 @@ contains
     use tuvx_grid_warehouse,     only : grid_warehouse_t
     use tuvx_profile_warehouse,  only : profile_warehouse_t
     use tuvx_radiator_warehouse, only : radiator_warehouse_t
+    use time_manager,        only : is_first_step
 
     character(len=*), intent(in) :: photon_file   ! photon file used in extended-UV module setup
     character(len=*), intent(in) :: electron_file ! electron file used in extended-UV module setup
@@ -307,10 +308,12 @@ contains
 
     call pbuf_set_field(pbuf2d, ion_rates_pbuf_index, nanval)
 
-    call pbuf_set_field(pbuf2d, cpe_jo2a_ndx, 0.0_r8)
-    call pbuf_set_field(pbuf2d, cpe_jo2b_ndx, 0.0_r8)
-    call pbuf_set_field(pbuf2d, cpe_jo3a_ndx, 0.0_r8)
-    call pbuf_set_field(pbuf2d, cpe_jo3b_ndx, 0.0_r8)
+    if (is_first_step()) then
+       call pbuf_set_field(pbuf2d, cpe_jo2a_ndx, 0.0_r8)
+       call pbuf_set_field(pbuf2d, cpe_jo2b_ndx, 0.0_r8)
+       call pbuf_set_field(pbuf2d, cpe_jo3a_ndx, 0.0_r8)
+       call pbuf_set_field(pbuf2d, cpe_jo3b_ndx, 0.0_r8)
+    end if
 
     if( is_main_task ) write(iulog,*) "Beginning TUV-x Initialization"
     config_path = trim(tuvx_config_path)

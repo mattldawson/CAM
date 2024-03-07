@@ -866,7 +866,7 @@ contains
    !-----------------------------------------------------------------------
    subroutine initialize_diagnostics( this )
 
-      use cam_history,   only : addfld, add_default
+      use cam_history,   only : addfld
       use musica_assert, only : assert
       use musica_string, only : string_t
 
@@ -898,7 +898,6 @@ contains
          diagnostics( i_label )%index_ = i_label
          call addfld( "tuvx_"//diagnostics( i_label )%name_, (/ 'lev' /), 'A', 'sec-1', &
             'photolysis rate constant' )
-         call add_default( "tuvx_"//diagnostics( i_label )%name_, 3, ' ' )
       end do
 
    end subroutine initialize_diagnostics

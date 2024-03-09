@@ -582,6 +582,7 @@ contains
       call pbuf_get_field(pbuf, cpe_jo3_a_pbuf_index, cpe_jo3_a)
       call pbuf_get_field(pbuf, cpe_jo3_b_pbuf_index, cpe_jo3_b)
 
+      cpe_rates(:,:,:) = 0.0_r8
       cpe_jo2_a(:,:) = 0.0_r8
       cpe_jo2_b(:,:) = 0.0_r8
       cpe_jo3_a(:,:) = 0.0_r8

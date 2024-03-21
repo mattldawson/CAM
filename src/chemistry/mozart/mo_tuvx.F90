@@ -92,7 +92,7 @@ module mo_tuvx
    integer :: jno_index  = 0       ! Index in tuvx_ptr::photo_rates_ array for jno
 
    ! Cutoff solar zenith angle for doing photolysis rate calculations [degrees]
-   integer :: max_sza = 0.0_r8
+   real(r8) :: max_sza = 0.0_r8
 
    ! TODO how should these paths be set and communicated to this wrapper?
    character(len=*), parameter :: wavelength_config_path = &

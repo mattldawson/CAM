@@ -910,7 +910,7 @@ contains
 
       call addfld( "tuvx_"//diagnostics( i_label )%name_, (/ 'lev' /), 'A', 'sec-1',  'photolysis rate constant' )
 
-      call add_default( "tuvx_"//diagnostics( i_label )%name_, 3, ' ')
+      !call add_default( "tuvx_"//diagnostics( i_label )%name_, 3, ' ')
 
     end do
 

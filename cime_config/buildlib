@@ -175,11 +175,10 @@ def _build_tuvx(caseroot, libroot, bldroot):
             cmake_args += "-DCMAKE_BUILD_TYPE=Debug "
         else:
             cmake_args += "-DCMAKE_BUILD_TYPE=Release "
-        cmake_args += "-DENABLE_UTIL_ONLY=ON "
         cmake_args += "-DCMAKE_C_COMPILER_WORKS=1 "
         cmake_args += "-DCMAKE_CXX_COMPILER_WORKS=1 "
-        cmake_args += "-DENABLE_TESTS=OFF "
-        cmake_args += "-DENABLE_COVERAGE=OFF "
+        cmake_args += "-DTUVX_ENABLE_TESTS=OFF "
+        cmake_args += "-DTUVX_ENABLE_COVERAGE=OFF "
         cmake_args += "-DCMAKE_Fortran_FLAGS='{}' ".format(arg_dict["FFLAGS"])
         cmake_args += "-DCMAKE_INSTALL_PREFIX='{}' ".format(libroot)
         cmake_args += srcpath

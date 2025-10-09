@@ -173,6 +173,18 @@ contains
       call pbuf_add_field( 'CPE_jO3a', 'global', dtype_r8, (/ pcols, pver /), cpe_jo3_a_pbuf_index )
       call pbuf_add_field( 'CPE_jO3b', 'global', dtype_r8, (/ pcols, pver /), cpe_jo3_b_pbuf_index )
 
+      ! Put the shortwave aerosol optical properties into the physics buffer so
+      ! that they can be used in the photolysis code.
+      call pbuf_add_field('SWAERTAU',   'global',dtype_r8,(/pcols,pver,nswbands/), swaertau_idx)   ! shortwave tau
+      call pbuf_add_field('SWAERTAUW',  'global',dtype_r8,(/pcols,pver,nswbands/), swaertauw_idx)  ! shortwave tau * w
+      call pbuf_add_field('SWAERTAUWG', 'global',dtype_r8,(/pcols,pver,nswbands/), swaertauwg_idx) ! shortwave tau * w * g
+
+      ! Put the shortwave cloud optical properties into the physics buffer so
+      ! that they can be used in the photolysis code.
+      call pbuf_add_field('SWCLDTAU',   'global',dtype_r8,(/pcols,pver,nswbands/), swcldtau_idx)   ! shortwave tau
+      call pbuf_add_field('SWCLDTAUW',  'global',dtype_r8,(/pcols,pver,nswbands/), swcldtauw_idx)  ! shortwave tau * w
+      call pbuf_add_field('SWCLDTAUWG', 'global',dtype_r8,(/pcols,pver,nswbands/), swcldtauwg_idx) ! shortwave tau * w * g
+
    end subroutine tuvx_register
 
 !================================================================================================
@@ -515,19 +527,6 @@ contains
                        trim( to_char( size( labels ) )// &
                        " rates, but only matched "// &
                        trim( to_char( number_of_heating_rates ) )//"." ) )
-
-      ! physic buffer fields for aerosol optical properties.
-      ! Get the aerosol optical properties from radiation code.
-      ! The optical properties from radiation code is in the form of tau*w*g (extinction optical depth * single scattering albedo * asymmetry parameter)
-      ! Individual parameters (extinction optical depth, single scattering albedo, asymmetry parameter) need to be derived to be used in TUVx
-      swaertau_idx   = pbuf_get_index('SWAERTAU') ! optical depth
-      swaertauw_idx  = pbuf_get_index('SWAERTAUW') ! optical depth * single scattering albedo
-      swaertauwg_idx = pbuf_get_index('SWAERTAUWG') ! optical depth * single scattering albedo * asymmetry parameter
-
-      ! get the clouds optical properties from radiation code
-      swcldtau_idx   = pbuf_get_index('SWCLDTAU')
-      swcldtauw_idx  = pbuf_get_index('SWCLDTAUW')
-      swcldtauwg_idx = pbuf_get_index('SWCLDTAUWG')
 
       if( is_first_step( ) ) then
         call pbuf_set_field( pbuf2d, swaertau_idx, 0.0_r8 )

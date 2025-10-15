@@ -17,8 +17,9 @@ module mo_tuvx
    use physics_buffer,  only : pbuf_get_field, pbuf_get_index, physics_buffer_desc
    use radconstants, only : nswbands
    use ppgrid, only : pcols ! maximum number of columns
-   use radconstants,    only: get_sw_spectral_boundaries
-   use spmd_utils,     only : is_main_task => masterproc
+   use radconstants, only : get_sw_spectral_boundaries
+   use spmd_utils, only : is_main_task => masterproc
+   use cam_history, only : fieldname_len, horiz_only, addfld, outfld !, add_default
 
    implicit none
 
@@ -60,6 +61,8 @@ module mo_tuvx
 
    ! Heating rate indices
    integer :: number_of_heating_rates = 0 ! number of heating rates in TUV-x
+   integer :: number_of_dose_rates = 0 ! number of dose rates in TUV-x
+   character(len=fieldname_len), allocatable :: dose_rate_hist_name(:)
    integer :: index_cpe_jo2_a = -1 ! index for jo2_a in heating rate array
    integer :: index_cpe_jo2_b = -1 ! index for jo2_b in heating rate array
    integer :: index_cpe_jo3_a = -1 ! index for jo3_a in heating rate array
@@ -83,11 +86,11 @@ module mo_tuvx
 
    ! Information needed to access aerosol and cloud optical properties
    logical :: do_aerosols = .false. ! indicates whether aerosol optical properties
-                                   !   are available and should be used in radiative
-                                   !   transfer calculations
+                                    !   are available and should be used in radiative
+                                    !   transfer calculations
    logical :: do_clouds  = .false.  ! indicates whether cloud optical properties
-                                   !   should be calculated and used in radiative
-                                   !   transfer calculations
+                                    !   should be calculated and used in radiative
+                                    !   transfer calculations
 
    ! Information needed to set extended-UV photo rates
    logical :: do_euv = .false.         ! Indicates whether to calculate
@@ -257,7 +260,6 @@ contains
 #ifdef HAVE_MPI
       use mpi
 #endif
-      use cam_history,             only : addfld
       use cam_logfile,             only : iulog ! log file output unit
       use infnan,                  only : nan, assignment(=)
       use mo_chem_utls,            only : get_spc_ndx, get_inv_ndx
@@ -308,6 +310,7 @@ contains
       logical, save :: is_initialized = .false.
 
       type(string_t), allocatable :: labels(:)
+      type(string_t), allocatable :: dose_labels(:)
       character(len=16) :: label
       integer :: i
       real(r8) :: nanval
@@ -315,6 +318,8 @@ contains
       real(r8) :: wavelength_low(nswbands) !RRTMG wavenumber low edge
       real(r8) :: wavelength_high(nswbands) !RRTMG wavenumber high edge
       real(r8), allocatable :: wc(:) ! TUVx wavelengths at bin centers
+
+      character(len=2) :: numchar
 
       if( .not. tuvx_active ) return
       if( is_initialized ) return
@@ -461,6 +466,7 @@ contains
       deallocate( cam_profiles  )
       deallocate( cam_radiators )
       deallocate( wavelength )
+      deallocate( buffer )
 
       ! =============================================
       ! Get index info for CAM species concentrations
@@ -537,6 +543,19 @@ contains
         call pbuf_set_field( pbuf2d, swcldtauwg_idx, 0.0_r8 )
       end if
 
+      ! Radiation dose rates diagnostics
+      number_of_dose_rates = tuvx_ptrs(1)%core_%number_of_dose_rates()
+      allocate(dose_rate_hist_name(number_of_dose_rates))
+
+      dose_labels = tuvx_ptrs(1)%core_%dose_rate_labels()
+      do i = 1, size( dose_labels )
+         write(numchar,'(I2.2)') i
+         dose_rate_hist_name = 'TUVX_DOSE_RATE_'//numchar
+         call addfld( dose_rate_hist_name(i), horiz_only, 'A', 'watts m-2', &
+              'TUVX dose rate: '//trim(dose_labels(i)%to_char()), flag_xyfill=.true. )
+         !call add_default(dose_rate_hist_name(i), 3, ' ')
+      end do
+
       ! Get the RRTMG wavenumber edges and convert to a wavelength center.
       !
       ! NOTE: Last band is a broadband that overlaps the other bands, so skip it.
@@ -583,7 +602,6 @@ contains
       earth_sun_distance, pressure_delta, cloud_fraction, liquid_water_content, &
       photolysis_rates )
 
-      use cam_history,      only : outfld
       use cam_logfile,      only : iulog        ! log info output unit
       use chem_mods,        only : phtcnt,    & ! number of photolysis reactions
                                    gas_pcnst, & ! number of non-fixed species
@@ -621,7 +639,7 @@ contains
       real(r8), intent(in)    :: liquid_water_content(ncol,pver)    ! liquid water content (kg/kg)
       real(r8), intent(inout) :: photolysis_rates(ncol,pver,phtcnt) ! photolysis rate
                                                                     !   constants (1/s)
-      integer :: ipht, k
+      integer :: ipht, k, idose
       integer  :: i_col   ! column index
       integer  :: i_level ! vertical level index
       real(r8) :: sza     ! solar zenith angle [degrees]
@@ -630,6 +648,8 @@ contains
       real(r8), pointer :: cpe_jo2_b(:,:) ! heating rate for jo2_b in physics buffer
       real(r8), pointer :: cpe_jo3_a(:,:) ! heating rate for jo3_a in physics buffer
       real(r8), pointer :: cpe_jo3_b(:,:) ! heating rate for jo3_b in physics buffer
+
+      real(r8) :: dose_rates(ncol,pverp+1,number_of_dose_rates)
 
       ! working arrays
       real(r8), allocatable :: photo_rates(:,:,:)              ! calculated photo rate constants (column, level, reaction) [s-1]
@@ -703,11 +723,12 @@ contains
             ! ===================================================
             ! Calculate photolysis rate constants for this column
             ! ===================================================
-            call tuvx%core_%run( solar_zenith_angle = sza, &
-               earth_sun_distance = earth_sun_distance, &
-               photolysis_rate_constants = &
-               photo_rates(i_col,:,1:tuvx%n_photo_rates_), &
-               heating_rates = cpe_rates(i_col,:,:) )
+            call tuvx%core_%run( &
+                 solar_zenith_angle = sza, &
+                 earth_sun_distance = earth_sun_distance, &
+                 photolysis_rate_constants = photo_rates(i_col,:,1:tuvx%n_photo_rates_), &
+                 heating_rates = cpe_rates(i_col,:,:), &
+                 dose_rates = dose_rates(i_col,:,:) )
 
             ! ==============================
             ! Calculate the extreme-UV rates
@@ -753,6 +774,11 @@ contains
          end do
 
          call output_diagnostics( tuvx, ncol, lchnk, photo_rates )
+
+         ! output radiaion dose rates at surface
+         do idose = 1, number_of_dose_rates
+            call outfld( dose_rate_hist_name(idose), dose_rates(:ncol, 1, idose), ncol, lchnk )
+         end do
 
          do ipht = 1, phtcnt
             call outfld( 'tuvcam_'//trim(rxt_tag_lst(ipht)), photolysis_rates(:ncol,:,ipht), ncol, lchnk )
@@ -803,14 +829,26 @@ contains
    !-----------------------------------------------------------------------
    subroutine tuvx_finalize( )
 
-      integer :: i_core
+      integer :: i_core, i_diag
 
       if( allocated( tuvx_ptrs ) ) then
          do i_core = 1, size( tuvx_ptrs )
             associate( tuvx => tuvx_ptrs( i_core ) )
-               if( associated( tuvx%core_ ) ) deallocate( tuvx%core_ )
+              if( associated( tuvx%core_ ) ) deallocate( tuvx%core_ )
+              if( allocated(tuvx%wavelength_edges_) ) deallocate(tuvx%wavelength_edges_)
             end associate
          end do
+      end if
+
+      if (allocated(diagnostics)) then
+         do i_diag = 1,size(diagnostics)
+            deallocate(diagnostics(i_diag)%name_)
+         end do
+         deallocate(diagnostics)
+      end if
+
+      if (allocated(dose_rate_hist_name)) then
+         deallocate(dose_rate_hist_name)
       end if
 
    end subroutine tuvx_finalize
@@ -951,7 +989,6 @@ contains
    !-----------------------------------------------------------------------
    subroutine initialize_diagnostics( this )
 
-      use cam_history,   only : addfld, add_default
       use musica_assert, only : assert
       use musica_string, only : string_t
       use chem_mods,     only : phtcnt, &   ! number of photolysis reactions
@@ -1123,8 +1160,6 @@ contains
    ! Outputs diagnostic information for the current time step
    !-----------------------------------------------------------------------
    subroutine output_diagnostics( this, ncol, lchnk, photo_rates )
-
-      use cam_history, only : outfld
 
       type(tuvx_ptr), intent(in) :: this
       integer,        intent(in) :: ncol  ! number of active columns on this thread

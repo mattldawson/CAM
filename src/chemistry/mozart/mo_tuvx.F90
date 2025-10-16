@@ -18,8 +18,11 @@ module mo_tuvx
    use radconstants, only : nswbands
    use ppgrid, only : pcols ! maximum number of columns
    use radconstants, only : get_sw_spectral_boundaries
-   use spmd_utils, only : is_main_task => masterproc
    use cam_history, only : fieldname_len, horiz_only, addfld, outfld !, add_default
+   use spmd_utils, only : is_main_task => masterproc
+   use spmd_utils, only : main_task_id => masterprocid
+   use spmd_utils, only : mpicom, mpi_character, mpi_integer, mpi_logical, mpi_success
+   use cam_abortutils, only : endrun
 
    implicit none
 
@@ -197,14 +200,9 @@ contains
    !-----------------------------------------------------------------------
    subroutine tuvx_readnl(nlfile)
 
-#ifdef HAVE_MPI
-      use mpi
-#endif
       use cam_abortutils, only : endrun
       use cam_logfile,    only : iulog ! log file output unit
       use namelist_utils, only : find_group_name
-      use spmd_utils,     only : mpicom, is_main_task => masterproc, &
-                                 main_task => masterprocid
 
       character(len=*), intent(in)  :: nlfile  ! filepath for file containing namelist input
 
@@ -234,10 +232,10 @@ contains
       ! ============================
       ! Broadcast namelist variables
       ! ============================
-#ifdef HAVE_MPI
-      call mpi_bcast(tuvx_config_path, len(tuvx_config_path), mpi_character, main_task, mpicom, ierr)
-      call mpi_bcast(tuvx_active,      1,                     mpi_logical,   main_task, mpicom, ierr)
-#endif
+      call mpi_bcast(tuvx_config_path, len(tuvx_config_path), mpi_character, main_task_id, mpicom, ierr)
+      if (ierr /= mpi_success) call endrun(subname//': mpi_bcast error : tuvx_config_path')
+      call mpi_bcast(tuvx_active,      1,                     mpi_logical,   main_task_id, mpicom, ierr)
+      if (ierr /= mpi_success) call endrun(subname//': mpi_bcast error : tuvx_active')
 
       if (tuvx_active .and. tuvx_config_path == 'NONE') then
          call endrun(subname // ' : must set tuvx_config_path when TUV-X is active')
@@ -257,9 +255,6 @@ contains
    !-----------------------------------------------------------------------
    subroutine tuvx_init( photon_file, electron_file, max_solar_zenith_angle, pbuf2d )
 
-#ifdef HAVE_MPI
-      use mpi
-#endif
       use cam_logfile,             only : iulog ! log file output unit
       use infnan,                  only : nan, assignment(=)
       use mo_chem_utls,            only : get_spc_ndx, get_inv_ndx
@@ -276,9 +271,6 @@ contains
       use ppgrid,                  only : pcols ! maximum number of columns
       use shr_const_mod,           only : pi => shr_const_pi
       use solar_irrad_data,        only : has_spectrum
-      use spmd_utils,              only : main_task => masterprocid, &
-                                          is_main_task => masterproc, &
-                                          mpicom
       use tuvx_grid,               only : grid_t
       use tuvx_grid_warehouse,     only : grid_warehouse_t
       use tuvx_profile_warehouse,  only : profile_warehouse_t
@@ -320,6 +312,7 @@ contains
       real(r8), allocatable :: wc(:) ! TUVx wavelengths at bin centers
 
       character(len=2) :: numchar
+      character(len=*), parameter :: subname = 'tuvx_init'
 
       if( .not. tuvx_active ) return
       if( is_initialized ) return
@@ -346,11 +339,6 @@ contains
       required_keys(1) = "aliasing"
       optional_keys(1) = "disable aerosols"
       optional_keys(2) = "disable clouds"
-
-#ifndef HAVE_MPI
-      call assert_msg( 113937299, is_main_task, "Multiple tasks present without " &
-         //"MPI support enabled for TUV-x" )
-#endif
 
       ! ===============================================================
       ! set the maximum solar zenith angle to calculate photo rates for
@@ -395,7 +383,8 @@ contains
             musica_mpi_pack_size( jno_index, mpicom ) + &
             musica_mpi_pack_size( disable_aerosols, mpicom ) + &
             musica_mpi_pack_size( disable_clouds, mpicom )
-         allocate( buffer( pack_size ) )
+         allocate( buffer( pack_size ), stat=i_err )
+         if( i_err /= 0 ) call endrun(subname//': allocation error : buffer')
          pos = 0
          call core%mpi_pack( buffer, pos, mpicom )
          call map%mpi_pack(  buffer, pos, mpicom )
@@ -406,22 +395,19 @@ contains
          deallocate( core )
       end if
 
-#ifdef HAVE_MPI
       ! ====================================================
       ! broadcast the core and map data to all MPI processes
       ! ====================================================
-      call mpi_bcast( pack_size, 1, MPI_INTEGER, main_task, mpicom, i_err )
-      if( i_err /= MPI_SUCCESS ) then
-         write(iulog,*) "TUV-x MPI int bcast error"
-         call mpi_abort( mpicom, 1, i_err )
+      call mpi_bcast( pack_size, 1, mpi_integer, main_task_id, mpicom, i_err )
+      if (i_err/=mpi_success) call endrun(subname//': mpi_bcast error : pack_size')
+
+      if( .not. is_main_task ) then
+         allocate( buffer( pack_size ), stat=i_err )
+         if( i_err /= 0 ) call endrun(subname//': allocation error : buffer')
       end if
-      if( .not. is_main_task ) allocate( buffer( pack_size ) )
-      call mpi_bcast( buffer, pack_size, MPI_CHARACTER, main_task, mpicom, i_err )
-      if( i_err /= MPI_SUCCESS ) then
-         write(iulog,*) "TUV-x MPI char array bcast error"
-         call mpi_abort( mpicom, 1, i_err )
-      end if
-#endif
+
+      call mpi_bcast( buffer, pack_size, mpi_character, main_task_id, mpicom, i_err )
+      if (i_err/=mpi_success) call endrun(subname//': mpi_bcast error : buffer')
 
       ! ================================================================
       ! unpack the core and map for each OMP thread on every MPI process
@@ -548,9 +534,10 @@ contains
       allocate(dose_rate_hist_name(number_of_dose_rates))
 
       dose_labels = tuvx_ptrs(1)%core_%dose_rate_labels()
-      do i = 1, size( dose_labels )
+
+      do i = 1, size(dose_labels)
          write(numchar,'(I2.2)') i
-         dose_rate_hist_name = 'TUVX_DOSE_RATE_'//numchar
+         dose_rate_hist_name(i) = 'TUVX_DOSE_RATE_'//numchar
          call addfld( dose_rate_hist_name(i), horiz_only, 'A', 'watts m-2', &
               'TUVX dose rate: '//trim(dose_labels(i)%to_char()), flag_xyfill=.true. )
          !call add_default(dose_rate_hist_name(i), 3, ' ')
@@ -613,9 +600,6 @@ contains
       use physics_buffer,   only : pbuf_get_field
       use ppgrid,           only : pcols        ! maximum number of columns
       use shr_const_mod,    only : pi => shr_const_pi
-      use spmd_utils,       only : main_task => masterprocid, &
-                                   is_main_task => masterproc, &
-                                   mpicom
 
       type(physics_state),       target,  intent(in)    :: state
       type(physics_buffer_desc), pointer, intent(inout) :: pbuf(:)
@@ -685,6 +669,7 @@ contains
          allocate( single_scattering_albedo_cld( pcols, pver+1, tuvx%n_wavelength_bins_ ) )
          allocate( asymmetry_factor_cld( pcols, pver+1, tuvx%n_wavelength_bins_ ) )
          photo_rates(:,:,:) = 0.0_r8
+         dose_rates(:,:,:) = 0.0_r8
 
          ! ==============================================
          ! set aerosol optical properties for all columns
@@ -906,8 +891,6 @@ contains
 
       use cam_logfile,    only : iulog ! log info output unit
       use musica_string,  only : to_char
-      use spmd_utils,     only : main_task => masterprocid, &
-         is_main_task => masterproc
 
       type(string_t), intent(in) :: heating_rate_labels(:) ! heating rate labels
 
@@ -916,7 +899,7 @@ contains
       if( is_main_task ) then
          write(iulog,*) "Initialized TUV-x"
 #ifdef HAVE_MPI
-         write(iulog,*) "  - with MPI support on task "//trim( to_char( main_task ) )
+         write(iulog,*) "  - with MPI support on task "//trim( to_char( main_task_id ) )
 #else
          write(iulog,*) "  - without MPI support"
 #endif
@@ -1038,6 +1021,7 @@ contains
          diagnostics( i_label )%index_ = i_label
          call addfld( "tuvx_"//diagnostics( i_label )%name_, (/ 'lev' /), 'A', 'sec-1', &
                       trim(diagnostics( i_label )%name_)//' photolysis rate constant' )
+         !call add_default("tuvx_"//diagnostics( i_label )%name_, 3, ' ')
       end do
 
       do ipht = 1, phtcnt

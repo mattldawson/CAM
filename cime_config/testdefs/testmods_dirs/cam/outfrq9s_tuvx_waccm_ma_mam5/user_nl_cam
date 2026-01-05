@@ -5,7 +5,7 @@ write_nstep0=.true.
 inithist='ENDOFRUN'
 
 tuvx_active = .true.
-tuvx_config_path = '$SRCROOT/src/chemistry/pp_waccm_ma_mam5/tuvx_config.json'
+tuvx_config_path = '$COMP_ROOT_DIR_ATM/src/chemistry/pp_waccm_ma_mam5/tuvx_config.json'
 
 fincl2 = 'TUVX_DOSE_RATE_01','TUVX_DOSE_RATE_02','TUVX_DOSE_RATE_03','TUVX_DOSE_RATE_04','TUVX_DOSE_RATE_05',
          'TUVX_DOSE_RATE_06','TUVX_DOSE_RATE_07','TUVX_DOSE_RATE_08','TUVX_DOSE_RATE_09','TUVX_DOSE_RATE_10',

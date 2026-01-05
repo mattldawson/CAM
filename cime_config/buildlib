@@ -28,7 +28,7 @@ logger = logging.getLogger(__name__)
 
 ###############################################################################
 def _build_fms(caseroot, libroot, bldroot):
-    ###############################################################################
+###############################################################################
 
     with Case(caseroot) as case:
 
@@ -72,7 +72,7 @@ def _build_fms(caseroot, libroot, bldroot):
 
 ###############################################################################
 def _build_cam(caseroot, libroot, bldroot):
-    ###############################################################################
+###############################################################################
 
     with Case(caseroot, read_only=False) as case:
 
@@ -220,12 +220,27 @@ def _build_tuvx(caseroot, libroot, bldroot):
             cmake_args += "-DCMAKE_BUILD_TYPE=Debug "
         else:
             cmake_args += "-DCMAKE_BUILD_TYPE=Release "
+        cmake_args += "-DCMAKE_VERBOSE_MAKEFILE=ON "
+        cmake_args += "-DCMAKE_Fortran_COMPILER=mpif90 "
+        cmake_args += "-DCMAKE_C_COMPILER=mpicc "
+        cmake_args += "-DCMAKE_CXX_COMPILER=mpicxx "
+        cmake_args += "-DCMAKE_Fortran_COMPILER_WORKS=1 "
         cmake_args += "-DCMAKE_C_COMPILER_WORKS=1 "
         cmake_args += "-DCMAKE_CXX_COMPILER_WORKS=1 "
+        if (case.get_value("MACH") == "izumi") :
+            cmake_args += "-DCMAKE_PREFIX_PATH={} ".format(arg_dict["NETCDF_PATH"])
+            cmake_args += "-DCMAKE_IGNORE_PATH={} ".format(os.environ.get('PYTHONHOME'))
+        if (case.get_value("MACH") == "izumi") and (case.get_value("COMPILER") == "nag") :
+            netcdf_path = arg_dict["NETCDF_PATH"]
+            cmake_args += "-DCMAKE_Fortran_FLAGS='{}' ".format("-I"+netcdf_path+"/include -C=all -g ")
+            cmake_args += "-DCMAKE_C_FLAGS='-std=gnu99 -g -Wl,--as-needed,--allow-shlib-undefined' "
+            cmake_args += "-DTUVX_USER_LDFLAGS='{}' ".format("-L"+netcdf_path+"/lib -lnetcdff -lnetcdf "+netcdf_path+"/lib/libnetcdff.a")
+        else :
+            cmake_args += "-DCMAKE_Fortran_FLAGS='{}' ".format(arg_dict["FFLAGS"])
+
+        cmake_args += "-DCMAKE_INSTALL_PREFIX='{}' ".format(libroot)
         cmake_args += "-DTUVX_ENABLE_TESTS=OFF "
         cmake_args += "-DTUVX_ENABLE_COVERAGE=OFF "
-        cmake_args += "-DCMAKE_Fortran_FLAGS='{}' ".format(arg_dict["FFLAGS"])
-        cmake_args += "-DCMAKE_INSTALL_PREFIX='{}' ".format(libroot)
         cmake_args += "-DTUVX_INSTALL_INCLUDE_DIR='{}' ".format(_tuvx_include_dir(libroot))
         cmake_args += "-DTUVX_INSTALL_MOD_DIR='{}' ".format(_tuvx_include_dir(libroot))
         cmake_args += srcpath
@@ -267,6 +282,8 @@ def _yaml_cpp_lib_path(libroot):
 # Returns the path to the yaml-cpp library
 
     corelib = os.path.join(libroot, "lib64", "libyaml-cpp.a")
+    if not os.path.exists(corelib):
+        corelib = os.path.join(libroot, "lib64", "libyaml-cppd.a")
     if not os.path.exists(corelib):
         corelib = os.path.join(libroot, "lib", "libyaml-cpp.a")
     expect(os.path.exists(corelib), \

@@ -5,7 +5,7 @@ module rrtmgp_inputs_cam
 ! RRTMGP.  Subset the number of model levels if CAM's top exceeds RRTMGP's
 ! valid domain.  Add an extra layer if CAM's top is below 1 Pa.
 ! The vertical indexing increases from top to bottom of atmosphere in both
-! CAM and RRTMGP arrays.   
+! CAM and RRTMGP arrays.
 !--------------------------------------------------------------------------------
 
 use shr_kind_mod,     only: r8=>shr_kind_r8
@@ -14,7 +14,7 @@ use ppgrid,           only: pcols, pver, pverp
 use physconst,        only: stebol, pi
 
 use physics_types,    only: physics_state
-use physics_buffer,   only: physics_buffer_desc
+use physics_buffer,   only: physics_buffer_desc, pbuf_get_index, pbuf_get_field
 use camsrfexch,       only: cam_in_t
 
 use radconstants,     only: nradgas, gaslist, nswbands, nlwbands
@@ -25,7 +25,7 @@ use cloud_rad_props,  only: get_liquid_optics_sw, liquid_cloud_get_rad_props_lw,
                             get_ice_optics_sw,    ice_cloud_get_rad_props_lw,    &
                             get_snow_optics_sw,   snow_cloud_get_rad_props_lw,   &
                             get_grau_optics_sw,   grau_cloud_get_rad_props_lw
-                                 
+
 use mcica_subcol_gen, only: mcica_subcol_sw
 
 use aer_rad_props,    only: aer_rad_props_sw, aer_rad_props_lw
@@ -70,7 +70,14 @@ integer :: idx_lw_cloudsim
 ! the SW optics datasets from RRTMG (even thought there is a slight mismatch in the
 ! band boundaries of the 2 bands that overlap with the LW bands).
 integer, parameter, dimension(14) :: rrtmg_to_rrtmgp_swbands = &
-   [ 14, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13 ]
+     [ 14, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13 ]
+
+integer :: swaertau_idx   = -1       ! shortwave aerosol extinction optical depth. tau
+integer :: swaertauw_idx  = -1       ! shortwave aerosol extinction optical depth * single scattering albedo. tau*w
+integer :: swaertauwg_idx = -1       ! shortwave aerosol extinction optical depth * single scattering albedo * asymmetry parameter. tau*w*g
+integer :: swcldtau_idx   = -1       ! shortwave cloud extinction optical depth. tau
+integer :: swcldtauw_idx  = -1       ! shortwave cloud extinction optical depth * single scattering albedo. tau*w
+integer :: swcldtauwg_idx = -1       ! shortwave cloud extinction optical depth * single scattering albedo * asymmetry parameter. tau*w*g
 
 !==================================================================================================
 contains
@@ -79,7 +86,7 @@ contains
 !==================================================================================================
 subroutine rrtmgp_inputs_cam_init(ktcam, ktrad, idx_sw_diag_in, idx_nir_diag_in, idx_uv_diag_in, &
                idx_sw_cloudsim_in, idx_lw_diag_in, idx_lw_cloudsim_in)
-      
+
    ! Note that this routine must be called after the calls to set_wavenumber_bands which set
    ! the sw/lw band boundaries in the radconstants module.
 
@@ -109,6 +116,21 @@ subroutine rrtmgp_inputs_cam_init(ktcam, ktrad, idx_sw_diag_in, idx_nir_diag_in,
       call endrun('rrtmgp_inputs_cam_init: error during get_sw_spectral_boundaries_ccpp - message: '//errmsg)
    end if
 
+   ! physic buffer fields for aerosol optical properties.
+   ! Get the aerosol optical properties from radiation code.
+   ! The optical properties from radiation code is in the form of tau*w*g
+   ! (extinction optical depth * single scattering albedo * asymmetry parameter)
+   ! Individual parameters (extinction optical depth, single scattering albedo,
+   ! asymmetry parameter) need to be derived to be used in TUVx
+   swaertau_idx   = pbuf_get_index('SWAERTAU', errcode=errflg) ! optical depth
+   swaertauw_idx  = pbuf_get_index('SWAERTAUW', errcode=errflg) ! optical depth * single scattering albedo
+   swaertauwg_idx = pbuf_get_index('SWAERTAUWG', errcode=errflg) ! optical depth * single scattering albedo * asymmetry parameter
+
+   ! get the clouds optical properties from radiation code
+   swcldtau_idx   = pbuf_get_index('SWCLDTAU', errcode=errflg)
+   swcldtauw_idx  = pbuf_get_index('SWCLDTAUW', errcode=errflg)
+   swcldtauwg_idx = pbuf_get_index('SWCLDTAUWG', errcode=errflg)
+
 end subroutine rrtmgp_inputs_cam_init
 
 !=========================================================================================
@@ -133,8 +155,8 @@ function get_molar_mass_ratio(gas_name) result(massratio)
    character(len=*), parameter :: sub='get_molar_mass_ratio'
    !----------------------------------------------------------------------------
 
-   select case (trim(gas_name)) 
-      case ('H2O') 
+   select case (trim(gas_name))
+      case ('H2O')
          massratio = amdw
       case ('CO2')
          massratio = amdc
@@ -218,20 +240,20 @@ subroutine rad_gas_get_vmr(icall, gas_name, state, pbuf, nlay, numactivecols, ga
    end if
 
    ! special case: H2O is specific humidity, not mixing ratio. Use r = q/(1-q):
-   if (gas_name == 'H2O') then 
+   if (gas_name == 'H2O') then
       mmr = mmr / (1._r8 - mmr)
-   end if  
+   end if
 
    ! convert MMR to VMR, multipy by ratio of dry air molar mas to gas molar mass.
    massratio = get_molar_mass_ratio(gas_name)
    gas_vmr = mmr * massratio
 
    ! special case: Setting O3 in the extra layer:
-   ! 
-   ! For the purpose of attenuating solar fluxes above the CAM model top, we assume that ozone 
-   ! mixing decreases linearly in each column from the value in the top layer of CAM to zero at 
-   ! the pressure level set by P_top. P_top has been set to 50 Pa (0.5 hPa) based on model tuning 
-   ! to produce temperatures at the top of CAM that are most consistent with WACCM at similar pressure levels. 
+   !
+   ! For the purpose of attenuating solar fluxes above the CAM model top, we assume that ozone
+   ! mixing decreases linearly in each column from the value in the top layer of CAM to zero at
+   ! the pressure level set by P_top. P_top has been set to 50 Pa (0.5 hPa) based on model tuning
+   ! to produce temperatures at the top of CAM that are most consistent with WACCM at similar pressure levels.
 
    if ((gas_name == 'O3') .and. (nlay == pverp)) then
       P_top = 50.0_r8
@@ -240,10 +262,10 @@ subroutine rad_gas_get_vmr(icall, gas_name, state, pbuf, nlay, numactivecols, ga
             P_mid = state%pmid(idx(i),1) ! pressure (Pa) at midpoint of top layer of CAM
             alpha = log(P_int/P_top)
             beta =  log(P_mid/P_int)/log(P_mid/P_top)
-      
+
             a =  ( (1._r8 + alpha) * exp(-alpha) - 1._r8 ) / alpha
             b =  1._r8 - exp(-alpha)
-   
+
             if (alpha .gt. 0) then             ! only apply where top level is below 80 km
                chi_mid = gas_vmr(i,1)          ! molar mixing ratio of O3 at midpoint of top layer
                chi_0 = chi_mid /  (1._r8 + beta)
@@ -406,6 +428,10 @@ subroutine rrtmgp_set_cloud_sw( &
    real(r8), allocatable :: day_cld_tau_w(:,:,:)
    real(r8), allocatable :: day_cld_tau_w_g(:,:,:)
 
+   real(r8), pointer, dimension(:,:,:) :: swcldtau   ! shortwave cloud tau
+   real(r8), pointer, dimension(:,:,:) :: swcldtauw  ! shortwave cloud tau * w
+   real(r8), pointer, dimension(:,:,:) :: swcldtauwg ! shortwave cloud tau * w * g
+
    character(len=128) :: errmsg
    character(len=*), parameter :: sub = 'rrtmgp_set_cloud_sw'
    !--------------------------------------------------------------------------------
@@ -468,6 +494,20 @@ subroutine rrtmgp_set_cloud_sw( &
          end do
       end do
    end if
+
+
+   if (swcldtau_idx>0) then
+      call pbuf_get_field(pbuf, swcldtau_idx,   swcldtau)
+      call pbuf_get_field(pbuf, swcldtauw_idx,  swcldtauw)
+      call pbuf_get_field(pbuf, swcldtauwg_idx, swcldtauwg)
+
+      do i = 1,nswbands
+         swcldtau(:ncol,1:pver,i)   = c_cld_tau(i,:ncol,1:pver)
+         swcldtauw(:ncol,1:pver,i)  = c_cld_tau_w(i,:ncol,1:pver)
+         swcldtauwg(:ncol,1:pver,i) = c_cld_tau_w_g(i,:ncol,1:pver)
+      end do
+   endif
+
 
    ! cloud optical properties need to be re-ordered from the RRTMG spectral bands
    ! (assumed in the optics datasets) to RRTMGP's
@@ -557,7 +597,7 @@ subroutine rrtmgp_set_cloud_sw( &
          kdist_sw%gas_props, nswbands, nswgpts, nday, nlay, &
          nver, changeseed, pmid, cldf, tauc,     &
          ssac, asmc, taucmcl, ssacmcl, asmcmcl)
-   
+
       ! Initialize object for SW cloud optical properties.
       errmsg = cloud_sw%optical_props%alloc_2str(nday, nlay, kdist_sw%gas_props)
       if (len_trim(errmsg) > 0) then
@@ -658,7 +698,7 @@ subroutine rrtmgp_set_aer_sw( &
    type(ty_optical_props_2str_ccpp), intent(inout) :: aer_sw
 
    ! local variables
-   integer  :: i
+   integer  :: i, ncol
 
    ! The optical arrays dimensioned in the vertical as 0:pver.
    ! The index 0 is for the extra layer used in the radiation
@@ -671,6 +711,12 @@ subroutine rrtmgp_set_aer_sw( &
    real(r8) :: aer_tau_w_g(pcols,0:pver,nswbands) ! asymmetry parameter * w * tau
    real(r8) :: aer_tau_w_f(pcols,0:pver,nswbands) ! forward scattered fraction * w * tau
                                                   ! aer_tau_w_f is not used by RRTMGP.
+
+   ! for TUV-x
+   real(r8), pointer, dimension(:,:,:) :: swaertau   ! shortwave aerosol tau (extinction optical depth)
+   real(r8), pointer, dimension(:,:,:) :: swaertauw  ! shortwave aerosol tau * w (extinction optical depth * single scattering albedo)
+   real(r8), pointer, dimension(:,:,:) :: swaertauwg ! shortwave aerosol tau * w * g (extinction optical depth * single scattering albedo * asymmetry parameter)
+
    character(len=*), parameter :: sub = 'rrtmgp_set_aer_sw'
    !--------------------------------------------------------------------------------
 
@@ -680,6 +726,20 @@ subroutine rrtmgp_set_aer_sw( &
       icall, state, pbuf, nnite, idxnite, &
       aer_tau, aer_tau_w, aer_tau_w_g, aer_tau_w_f)
 
+   ! Save aerosol optical properties in the physics buffer for
+   ! photolysis, but only for the climate call.
+   if (icall==0.and.swaertau_idx>0) then
+      call pbuf_get_field(pbuf, swaertau_idx,   swaertau)
+      call pbuf_get_field(pbuf, swaertauw_idx,  swaertauw)
+      call pbuf_get_field(pbuf, swaertauwg_idx, swaertauwg)
+
+      ncol = state%ncol
+
+      swaertau(:ncol,1:pver,:)   = aer_tau(:ncol,1:pver,:)
+      swaertauw(:ncol,1:pver,:)  = aer_tau_w(:ncol,1:pver,:)
+      swaertauwg(:ncol,1:pver,:) = aer_tau_w_g(:ncol,1:pver,:)
+   endif
+
    ! The aer_sw object is only initialized if nday > 0.
    if (nday > 0) then
 
@@ -688,7 +748,7 @@ subroutine rrtmgp_set_aer_sw( &
       aer_tau(:,:,:)     = aer_tau(    :,:,rrtmg_to_rrtmgp_swbands)
       aer_tau_w(:,:,:)   = aer_tau_w(  :,:,rrtmg_to_rrtmgp_swbands)
       aer_tau_w_g(:,:,:) = aer_tau_w_g(:,:,rrtmg_to_rrtmgp_swbands)
-                  
+
       ! If there is an extra layer in the radiation then this initialization
       ! will provide default values.
       aer_sw%optical_props%tau = 0.0_r8
